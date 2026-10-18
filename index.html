@@ -1,1 +1,55 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=rtc-v042.html"><title>RTC Academy · Bohemio 4 Infinity</title><link rel="icon" href="favicon.svg" type="image/svg+xml"></head><body style="font-family:system-ui;background:#071426;color:#fff;padding:32px"><h1>RTC Academy</h1><p>Abriendo el simulador actualizado…</p><p><a style="color:#8ce8f0" href="rtc-v042.html">Entrar en RTC Academy</a></p></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#071426">
+<title>RTC Academy · Bohemio 4 Infinity</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>html,body,#rtc{width:100%;height:100%;margin:0;border:0;background:#071426;overflow:hidden}#rtc{display:block}</style>
+</head>
+<body>
+<iframe id="rtc" src="rtc-v042.html" title="RTC Academy" allow="microphone"></iframe>
+<script>
+'use strict';
+const frame=document.getElementById('rtc');
+frame.addEventListener('load',()=>{
+  const w=frame.contentWindow;
+  if(!w) return;
+
+  const ICAO={A:'Alfa',B:'Bravo',C:'Charlie',D:'Delta',E:'Echo',F:'Foxtrot',G:'Golf',H:'Hotel',I:'India',J:'Juliett',K:'Kilo',L:'Lima',M:'Mike',N:'November',O:'Oscar',P:'Papa',Q:'Quebec',R:'Romeo',S:'Sierra',T:'Tango',U:'Uniform',V:'Victor',W:'Whiskey',X:'X-ray',Y:'Yankee',Z:'Zulu'};
+  const DIGIT={'0':'cero','1':'uno','2':'dos','3':'tres','4':'cuatro','5':'cinco','6':'seis','7':'siete','8':'ocho','9':'nueve'};
+  const digits=s=>String(s).split('').map(x=>DIGIT[x]||x).join(' ');
+  const callsign=s=>s.toUpperCase().replace(/\b([A-Z]{1,2})-([A-Z]{2,5})\b/g,(_,a,b)=>[...a,...b].map(c=>ICAO[c]||c).join(' '));
+
+  function aeronauticalSpeech(text){
+    let s=String(text||'');
+    // Matrículas e indicativos: EC-RTC -> Echo Charlie Romeo Tango Charlie.
+    s=callsign(s);
+    // Pistas: siempre dígito a dígito (06 -> cero seis, 24 -> dos cuatro).
+    s=s.replace(/\b(pista|runway)\s+(\d{1,2})\b/gi,(_,p,n)=>p+' '+digits(n.padStart(2,'0')));
+    // QNH/QFE y códigos Q con valores numéricos: lectura aeronáutica dígito a dígito.
+    s=s.replace(/\b(QNH|QFE)\s+(\d{3,4})\b/gi,(_,q,n)=>q+' '+digits(n));
+    // Frecuencias: cada cifra y el decimal por separado.
+    s=s.replace(/\b(\d{3})[\.,](\d{1,3})\b/g,(_,a,b)=>digits(a)+' decimal '+digits(b));
+    return s;
+  }
+
+  w.rtcAeronauticalSpeech=aeronauticalSpeech;
+  w.say=function(text){
+    if(!('speechSynthesis' in w)) return;
+    w.speechSynthesis.cancel();
+    w.speechSynthesis.resume();
+    const spoken=aeronauticalSpeech(text);
+    const u=new w.SpeechSynthesisUtterance(spoken);
+    u.lang='es-ES';
+    u.rate=.90;
+    const voices=w.speechSynthesis.getVoices();
+    const voice=voices.find(v=>v.lang.toLowerCase()==='es-es')||voices.find(v=>v.lang.toLowerCase().startsWith('es'));
+    if(voice) u.voice=voice;
+    w.speechSynthesis.speak(u);
+  };
+});
+</script>
+</body>
+</html>
