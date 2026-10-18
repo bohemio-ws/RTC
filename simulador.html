@@ -45,7 +45,7 @@ const route=["platform","taxi","hold","lineup","departure","upwind","exit","enro
 let st={mode:null,from:fields[0],to:fields[1],leg:0,step:0,steps:[],scores:[],events:[],transcript:"",done:false,waiting:false,rec:null,recFinal:"",error:"",micBusy:false};
 function safe(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function norm(t){return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?-]/g," ").replace(/\s+/g," ").trim()}
-function recognizedCallsign(text){const n=norm(text).replace(/\b(eco|echo)\b/g,"eco").replace(/\b(foxtreo|foxteo|foxtro|foxtrot)\b/g,"foxtrot");return /\bec\s*rtc\b/.test(n)||/\be\s*c\s*r\s*t\s*c\b/.test(n)||/\beco\s+charlie\s+romeo\s+tango\s+foxtrot\b/.test(n)||/\becho\s+charlie\s+romeo\s+tango\s+foxtrot\b/.test(n)}
+function recognizedCallsign(text){const n=norm(text).replace(/\becho\b/g,"eco");return /\bec\s*rtc\b/.test(n)||/\be\s*c\s*r\s*t\s*c\b/.test(n)||/\beco\s+charlie\s+romeo\s+tango\s+charlie\b/.test(n)}
 function say(t){if(!("speechSynthesis"in window))return;speechSynthesis.cancel();speechSynthesis.resume();const u=new SpeechSynthesisUtterance(t);u.lang="es-ES";u.rate=.93;const vs=speechSynthesis.getVoices(),v=vs.find(x=>x.lang.toLowerCase()==="es-es")||vs.find(x=>x.lang.startsWith("es"));if(v)u.voice=v;speechSynthesis.speak(u)}
 
 const rtc9432Sections=[
