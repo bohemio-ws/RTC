@@ -31,6 +31,18 @@ function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {
   await delay(60);assert(controller.getState()==="recording","se interrumpe sin orden");tap(p);await delay();
   assert(controller.getState()==="idle","no termina");assert(bed.querySelector("audio"),"falta audio reproducible");controller.dispose();
  });
+ await test("La duración evaluada excluye el tiempo de revisión del texto",async()=>{
+  let measured=-1;
+  [p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},(_,seconds)=>{measured=seconds});
+  tap(p);await delay(10);tap(p);await delay();
+  const area=bed.querySelector("textarea"),btn=bed.querySelector("#rtcAudioResult button");
+  assert(!!area&&!!btn,"faltan controles de revisión");
+  await delay(1100);
+  area.value="EC RTC en plataforma, solicito información";
+  btn.click();
+  assert(measured>=0&&measured<0.9,"el tiempo de revisión contaminó la duración de radio");
+  controller.dispose();
+ });
  await test("Un pointerdown aislado no activa el modo alterno",async()=>{
   [p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{});
   p.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch",button:0}));
