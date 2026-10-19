@@ -50,6 +50,8 @@ const rtcOfflineEngine={
   const recognizer=await this._load();
   const result=await recognizer(samples,{language:"spanish",task:"transcribe",return_timestamps:false});
   const transcript=String(result?.text||"").trim();
-  return {text:transcript,complete:transcript.length>0};
+  // Un texto generado por Whisper no demuestra por sí solo que se haya
+  // reconocido íntegramente la transmisión: nunca certificarlo automáticamente.
+  return {text:transcript,complete:false};
  }
 };
