@@ -36,11 +36,11 @@ function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {
   p.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch",button:0}));
   await delay();assert(controller.getState()==="idle","pointerdown inició grabación sin click");controller.dispose();
  });
- await test("Finalizar mientras solicita permiso sin bloquear el PTT",async()=>{
+ await test("Cancelar permiso pendiente sin generar audio ficticio",async()=>{
   pending=deferred();[p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{});
-  tap(p);assert(controller.getState()==="requesting","no pide permiso");tap(p);assert(controller.getState()==="requesting","debe esperar permiso para grabar la transmisión corta");
+  tap(p);assert(controller.getState()==="requesting","no pide permiso");tap(p);assert(controller.getState()==="idle","debe cancelar una grabación aún no iniciada");
   pending.resolve({getTracks:()=>[{stop(){tracks++}}]});await delay();
-  assert(controller.getState()==="idle","no terminó la transmisión al obtener permiso");assert(bed.querySelector("audio"),"no generó el resultado tras permiso");assert(status.textContent.includes("Grabación finalizada")||status.textContent.includes("Grabación vacía"),"sin estado final");controller.dispose();pending=null;
+  assert(controller.getState()==="idle","se activó grabación después de cancelar");assert(!bed.querySelector("audio"),"generó audio ficticio");controller.dispose();pending=null;
  });
  await test("Salir de pantalla con permiso pendiente",async()=>{
   pending=deferred();[p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{});tap(p);controller.dispose();
