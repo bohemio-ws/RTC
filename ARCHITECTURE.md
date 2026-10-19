@@ -49,3 +49,13 @@ Estado: rama de desarrollo `refactor/modular-rtc`. La versión publicada NO se m
 4. Migración de lecciones y prácticas.
 5. Tráfico avión-avión y autoinformación.
 6. Pruebas de regresión y publicación.
+
+## Requisito de independencia y seguridad didáctica (19-10-2026)
+- Prohibido depender de API externa, servidor comercial o servicio de transcripción de terceros en tiempo de ejecución.
+- Reconocimiento de voz exclusivamente local en el dispositivo, con componentes libres auditables y modelos fijados por versión; evitar descargas cambiantes no controladas.
+- El motor de interpretación aeronáutica, reglas de fraseología, escenarios, evaluación y contenido docente es propio de Bohemio RTC y está desacoplado del reconocimiento acústico.
+- El audio es la fuente original; toda transcripción es una hipótesis falible. Nunca presentar una transcripción dudosa como un hecho ni calificar con certeza una emisión no reconocida.
+- Incertidumbre, conflicto o falta de recursos del dispositivo => resultado NO EVALUABLE y revisión del audio, sin falsa corrección.
+- Corpus de pruebas con audios de diferentes acentos, ruidos, pausas, pistas, QNH, frecuencias, indicativos, autorizaciones y emergencias; revisión por instructor cualificado de las reglas.
+- Pruebas en Chrome, Opera y navegadores objetivo, incluidos móviles modestos; incompatibilidades declaradas, nunca escondidas.
+- No prometer compatibilidad universal ni precisión absoluta hasta disponer de resultados medidos.
