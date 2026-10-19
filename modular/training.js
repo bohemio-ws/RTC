@@ -62,13 +62,7 @@ function rtcCorrectionInfo(text){
  }
  return {used:true,valid:true,effective:raw,message:"CORRECCIÓN detectada. Comprueba que el dato sustituido queda inequívoco; el motor no descarta automáticamente otros valores."};
 }
-function rtcPhraseIssues(t){
- const n=norm(t),issues=[];
- // Las variantes de afirmación se verifican contra la biblioteca normativa central; no penalizar sin referencia confirmada.
- if(/\broger\b/.test(n))issues.push("En este entrenador de fraseología española: evita «ROGER»; usa «RECIBIDO» para acusar recibo o «AFIRMO» para una respuesta afirmativa, según corresponda.");
- if(/\bnegativa\b/.test(n))issues.push("Para responder negativamente, utiliza «NEGATIVO».");
- return issues;
-}
+function rtcPhraseIssues(t){return rtcPhraseologyIssues(t)}
 function drillCheck(text){
  const d=drills[drillIdx],interpreted=rtcEmergencyPhonetics(text),correction=rtcCorrectionInfo(interpreted),n=norm(correction.effective);
  if(!n||n==="la transcripcion aparecera aqui"||n==="escuchando"){ $("#feedback").innerHTML='<section class="card feedback"><h3>Sin comunicación reconocida</h3><p>El micrófono no ha entregado texto evaluable. No corresponde poner un 0 % ni registrar un intento.</p><p>Repite manteniendo pulsado PTT mientras hablas, o escribe tu mensaje en el cuadro de texto.</p></section>';return}
