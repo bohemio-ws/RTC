@@ -3,7 +3,7 @@
 // El estado de grabación depende del usuario, no del silencio.
 function rtcHoldRecognizer(p,status,onWords,onFinish){
  rtcPTTGuard(p);
- let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,session=0,pointer=null,disposed=false;
+ let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,session=0,pointer=null,disposed=false,stopAfterPermission=false;
  const controls=document.createElement("div");controls.id="rtcAudioControls";
  const label=document.createElement("label");
  const toggle=document.createElement("input");toggle.type="checkbox";toggle.checked=true;toggle.id="rtcPTTToggle";
@@ -29,7 +29,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
   result.append(audio,note,area,btn);
  }
  function stop(){
-  if(state==="requesting"){session++;reset("Grabación cancelada antes de iniciar.");return}
+  if(state==="requesting"){stopAfterPermission=true;status.textContent="Esperando al micrófono para cerrar la transmisión…";return}
   if(state!=="recording")return;
   setState("stopping","Finalizando grabación…");
   try{if(recorder&&recorder.state!=="inactive")recorder.stop();else reset("No se pudo completar la grabación.")}
@@ -38,7 +38,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
  async function start(){
   if(state!=="idle"||disposed)return;
   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){status.textContent="Este navegador no ofrece grabación compatible. Usa el ejercicio de texto.";return}
-  const token=++session;chunks=[];result.replaceChildren();onWords("");setState("requesting","Solicitando permiso del micrófono…");
+  const token=++session;stopAfterPermission=false;chunks=[];result.replaceChildren();onWords("");setState("requesting","Solicitando permiso del micrófono…");
   let obtained;
   try{
    obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
@@ -52,6 +52,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
    recorder.onstop=()=>{if(token===session)finish();else release()};
    recorder.start();
    setState("recording","● GRABANDO · las pausas no detienen la transmisión");
+   if(stopAfterPermission)stop();
   }catch(e){if(token===session)reset("No se pudo iniciar el micrófono: "+e.message);else if(obtained)obtained.getTracks().forEach(t=>t.stop())}
  }
  function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";p.classList.remove("live");p.setAttribute("aria-pressed","false");observer.disconnect()}
