@@ -3,7 +3,7 @@
 // El estado de grabación depende del usuario, no del silencio.
 function rtcHoldRecognizer(p,status,onWords,onFinish){
  rtcPTTGuard(p);
- let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,session=0,pointer=null;
+ let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,session=0,pointer=null,disposed=false;
  const controls=document.createElement("div");controls.id="rtcAudioControls";
  const label=document.createElement("label");
  const toggle=document.createElement("input");toggle.type="checkbox";toggle.checked=true;toggle.id="rtcPTTToggle";
@@ -13,10 +13,10 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
  function setState(next,msg){state=next;p.classList.toggle("live",next==="recording");p.setAttribute("aria-pressed",String(next==="recording"));if(msg)status.textContent=msg}
  function release(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
  function revoke(){if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}}
- function reset(msg){release();recorder=null;setState("idle",msg)}
+ function reset(msg){release();recorder=null;if(!disposed)setState("idle",msg)}
  function finish(){
   release();setState("idle","Grabación finalizada.");
-  if(!p.isConnected)return;
+  if(disposed||!p.isConnected)return;
   const type=recorder?.mimeType||"audio/webm";
   const blob=new Blob(chunks,{type});
   if(!blob.size){status.textContent="Grabación vacía; vuelve a intentarlo.";return}
@@ -36,13 +36,13 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
   catch(e){reset("Error al detener la grabación: "+e.message)}
  }
  async function start(){
-  if(state!=="idle")return;
+  if(state!=="idle"||disposed)return;
   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){status.textContent="Este navegador no ofrece grabación compatible. Usa el ejercicio de texto.";return}
   const token=++session;chunks=[];result.replaceChildren();onWords("");setState("requesting","Solicitando permiso del micrófono…");
   let obtained;
   try{
    obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-   if(token!==session||state!=="requesting"||!p.isConnected){obtained.getTracks().forEach(t=>t.stop());return}
+   if(token!==session||state!=="requesting"||disposed||!p.isConnected){obtained.getTracks().forEach(t=>t.stop());return}
    stream=obtained;
    const supported=typeof MediaRecorder.isTypeSupported==="function"&&MediaRecorder.isTypeSupported("audio/webm;codecs=opus");
    recorder=new MediaRecorder(stream,supported?{mimeType:"audio/webm;codecs=opus"}:{});
@@ -54,7 +54,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
    setState("recording","● GRABANDO · las pausas no detienen la transmisión");
   }catch(e){if(token===session)reset("No se pudo iniciar el micrófono: "+e.message);else if(obtained)obtained.getTracks().forEach(t=>t.stop())}
  }
- function dispose(){session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";observer.disconnect()}
+ function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";observer.disconnect()}
  const observer=new MutationObserver(()=>{if(!p.isConnected)dispose()});
  observer.observe(document.body,{childList:true,subtree:true});
  p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;
