@@ -19,6 +19,8 @@ jobs:
         run: |
           set -e
           for f in modular/*.js; do node --check "$f"; done
+      - name: Ejecutar pruebas de integración de biblioteca y ASR
+        run: node modular/tests/integration.js
       - name: Comprobar contrato sin servicios de voz remotos
         run: |
           python3 - <<'PY'
