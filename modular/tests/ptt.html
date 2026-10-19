@@ -19,17 +19,22 @@ const original={mediaDevices:navigator.mediaDevices,MediaRecorder:window.MediaRe
 Object.defineProperty(navigator,"mediaDevices",{configurable:true,value:{getUserMedia:()=>pending?pending.promise:Promise.resolve({getTracks:()=>[{stop(){tracks++}}]})}});
 window.MediaRecorder=FakeRecorder;URL.createObjectURL=()=>{blobs++;return "blob:rtc-test"};URL.revokeObjectURL=()=>{};
 function mount(){bed.innerHTML='<button id="ptt">PTT</button><div id="status"></div>';return [bed.querySelector("#ptt"),bed.querySelector("#status")]}
-function tap(p){p.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch",button:0}))}
+function tap(p){p.click()}
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}}
 </script>
 <script src="../audio-ptt.js"></script>
 <script>
 (async()=>{
  log.textContent="";let p,status,controller;
- await test("Inicio, pausa de cinco segundos simulados y fin solo por orden",async()=>{
+ await test("Inicio, pausa sin finalización automática y fin solo por orden",async()=>{
   [p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{});tap(p);await delay();assert(controller.getState()==="recording","no comienza");
   await delay(60);assert(controller.getState()==="recording","se interrumpe sin orden");tap(p);await delay();
   assert(controller.getState()==="idle","no termina");assert(bed.querySelector("audio"),"falta audio reproducible");controller.dispose();
+ });
+ await test("Un pointerdown aislado no activa el modo alterno",async()=>{
+  [p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{});
+  p.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true,pointerType:"touch",button:0}));
+  await delay();assert(controller.getState()==="idle","pointerdown inició grabación sin click");controller.dispose();
  });
  await test("Cancelar mientras solicita permiso",async()=>{
   pending=deferred();[p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{});
