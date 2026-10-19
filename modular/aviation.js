@@ -8,6 +8,26 @@ function rtcPhraseologyIssues(text){
  if(/\bnegativa\b/.test(n))issues.push("Para responder negativamente, utiliza «"+RTC_PHRASEOLOGY.negative+"».");
  return issues;
 }
+
+// Extrae valores pronunciados por palabras, sin exigir la grafía del dictado.
+// Solo interpreta secuencias inequívocas; nunca inventa una cifra ausente.
+const RTC_DIGITS=Object.freeze({cero:"0",uno:"1",una:"1",un:"1",dos:"2",tres:"3",cuatro:"4",cinco:"5",seis:"6",siete:"7",ocho:"8",nueve:"9"});
+function rtcSpokenDigits(text){
+ const tokens=norm(text).split(" ").filter(Boolean);
+ return tokens.map(t=>Object.prototype.hasOwnProperty.call(RTC_DIGITS,t)?RTC_DIGITS[t]:t);
+}
+function rtcRunwayFromSpeech(text){
+ const tokens=rtcSpokenDigits(text);
+ for(let i=0;i<tokens.length;i++){
+  if(tokens[i]!=="pista")continue;
+  const first=tokens[i+1],second=tokens[i+2];
+  let value="";
+  if(/^\\d{2}$/.test(first||""))value=first;
+  else if(/^\\d$/.test(first||"")&&/^\\d$/.test(second||""))value=first+second;
+  if(value&&Number(value)>=1&&Number(value)<=36)return value;
+ }
+ return "";
+}
 const ICAO_PHONETIC={alfa:"A",alpha:"A",bravo:"B",charlie:"C",delta:"D",eco:"E",echo:"E",foxtrot:"F",golf:"G",hotel:"H",india:"I",juliett:"J",juliet:"J",kilo:"K",lima:"L",mike:"M",november:"N",oscar:"O",papa:"P",quebec:"Q",romeo:"R",sierra:"S",tango:"T",uniform:"U",victor:"V",whiskey:"W",whisky:"W",xray:"X",yankee:"Y",zulu:"Z"};
 function phoneticLetters(text){return norm(text).split(" ").map(w=>ICAO_PHONETIC[w]||null)}
 function callsignFromSpeech(text){
