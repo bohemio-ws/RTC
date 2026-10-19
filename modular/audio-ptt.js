@@ -27,6 +27,23 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
   const btn=document.createElement("button");btn.className="btn primary";btn.textContent="Evaluar texto revisado";
   btn.addEventListener("click",()=>{const t=area.value.trim();if(!t){status.textContent="Primero revisa y escribe la comunicación.";return}onFinish(t,Math.max(0,(endedAt-startedAt)/1000))});
   result.append(audio,note,area,btn);
+  // La transcripción automática solo se acepta desde un motor local instalado.
+  // Una respuesta tardía de una grabación anterior nunca modifica la actual.
+  const asrSession=session;
+  const localEngine=typeof rtcOfflineEngine!=="undefined"?rtcOfflineEngine:null;
+  if(typeof rtcLocalASR!=="undefined"&&localEngine&&localEngine.local===true){
+   note.textContent="Procesando audio localmente…";
+   rtcLocalASR.transcribe(blob,localEngine).then(res=>{
+    if(disposed||session!==asrSession||!p.isConnected)return;
+    if(res.status==="OK"){
+     area.value=res.text;
+     onWords(res.text);
+     note.textContent="Transcripción automática local: comprueba el texto antes de evaluar.";
+    }else{
+     note.textContent="NO EVALUABLE: "+res.reason+". Repite la transmisión o revisa el audio.";
+    }
+   });
+  }
  }
  function stop(){
   if(state==="requesting"){session++;reset("Micrófono aún sin activar: no se ha grabado audio. Pulsa PTT de nuevo cuando concedas permiso.");return}
