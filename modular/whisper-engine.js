@@ -11,13 +11,13 @@ const rtcOfflineEngine={
   if(this._pipeline)return this._pipeline;
   if(this._loading)return this._loading;
   this._loading=(async()=>{
-   const runtime="./vendor/transformers.min.js";
    // No depender de HEAD: algunos servidores estáticos lo rechazan aunque sirvan GET.
    const {pipeline,env}=await import("./vendor/transformers.min.js");
    env.allowRemoteModels=false;
    env.allowLocalModels=true;
-   env.localModelPath=new URL("./models/",document.baseURI).pathname;
+   env.localModelPath=new URL("./models/",document.baseURI).href;
    env.backends.onnx.wasm.wasmPaths=new URL("./vendor/",document.baseURI).href;
+   env.backends.onnx.wasm.proxy=false;
    const recognizer=await pipeline("automatic-speech-recognition","Xenova/whisper-tiny",{dtype:"q8",device:"wasm"});
    this._pipeline=recognizer;
    return recognizer;
@@ -49,6 +49,7 @@ const rtcOfflineEngine={
   }
   const recognizer=await this._load();
   const result=await recognizer(samples,{language:"spanish",task:"transcribe",return_timestamps:false});
-  return {text:String(result?.text||"").trim(),complete:!!result?.text?.trim()};
+  const transcript=String(result?.text||"").trim();
+  return {text:transcript,complete:transcript.length>0};
  }
 };
