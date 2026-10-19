@@ -17,9 +17,9 @@ const rtcOfflineEngine={
    const {pipeline,env}=await import("./vendor/transformers.min.js");
    env.allowRemoteModels=false;
    env.allowLocalModels=true;
-   env.localModelPath="./models/";
+   env.localModelPath=new URL("./models/",document.baseURI).pathname;
    env.backends.onnx.wasm.wasmPaths="./vendor/";
-   const recognizer=await pipeline("automatic-speech-recognition","whisper-tiny-multilingual",{quantized:true});
+   const recognizer=await pipeline("automatic-speech-recognition","Xenova/whisper-tiny",{dtype:"q8",device:"wasm"});
    this._pipeline=recognizer;
    return recognizer;
   })();
