@@ -18,48 +18,6 @@ function rtcPTTGuard(p){
  p.setAttribute("type","button");p.setAttribute("draggable","false");p.textContent="PTT";p.style.webkitUserSelect="none";p.style.webkitUserSelect="none";p.style.userSelect="none";p.style.webkitTouchCallout="none";p.style.touchAction="none";
  ["contextmenu","selectstart","dragstart"].forEach(n=>p.addEventListener(n,e=>e.preventDefault(),{capture:true}));
 }
-function rtcHoldRecognizer(p,status,onWords,onFinish){
- rtcPTTGuard(p);
- let recording=false,recorder=null,stream=null,chunks=[],url=null,startedAt=0,stopping=false;
- p.insertAdjacentHTML("afterend",'<div id="rtcAudioControls"><label><input id="rtcPTTToggle" type="checkbox" checked> Modo alterno: tocar para iniciar y tocar para finalizar</label><div id="rtcAudioResult"></div></div>');
- const result=p.parentElement.querySelector("#rtcAudioResult");
- function cleanup(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
- function stop(){
-  if(!recording||stopping)return;stopping=true;recording=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");
-  status.textContent="Finalizando grabación…";
-  try{if(recorder&&recorder.state!=="inactive")recorder.stop();else cleanup()}catch(e){cleanup();status.textContent="No se pudo finalizar: "+e.message}
- }
- async function start(){
-  if(recording||stopping)return;
-  if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){status.textContent="Este navegador no permite grabación web. Usa el campo de texto.";return}
-  recording=true;chunks=[];onWords("");result.textContent="";p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="Solicitando micrófono…";
-  try{
-   const obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-   if(!recording){obtained.getTracks().forEach(t=>t.stop());return}
-   stream=obtained;const opts=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?{mimeType:"audio/webm;codecs=opus"}:{};
-   recorder=new MediaRecorder(stream,opts);startedAt=performance.now();
-   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
-   recorder.onerror=()=>{status.textContent="Error de grabación. Comprueba el permiso del micrófono."};
-   recorder.onstop=()=>{
-    cleanup();stopping=false;
-    if(url)URL.revokeObjectURL(url);
-    const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});
-    if(!blob.size){status.textContent="Grabación vacía. Vuelve a intentarlo.";return}
-    url=URL.createObjectURL(blob);result.textContent="";
-    const audio=document.createElement("audio");audio.controls=true;audio.src=url;audio.style.width="100%";result.appendChild(audio);
-    const note=document.createElement("p");note.textContent="Grabación completa. Escúchala y escribe su transcripción para evaluarla. El navegador no puede transcribir directamente este archivo con SpeechRecognition.";result.appendChild(note);
-    const area=document.createElement("textarea");area.placeholder="Transcribe aquí tu comunicación completa";result.appendChild(area);
-    const btn=document.createElement("button");btn.className="btn primary";btn.textContent="Evaluar transcripción";btn.onclick=()=>{if(!area.value.trim()){status.textContent="Escribe la comunicación antes de evaluar.";return}onFinish(area.value,(performance.now()-startedAt)/1000)};result.appendChild(btn);
-    status.textContent="Grabación finalizada. Audio disponible para revisar.";
-   };
-   recorder.start();status.textContent="● GRABANDO · las pausas no detienen la transmisión";
-  }catch(e){recording=false;stopping=false;p.classList.remove("live");cleanup();status.textContent="Micrófono no disponible: "+e.message}
- }
- let pointer=null;
- p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;if($("#rtcPTTToggle")?.checked){if(recording)stop();else start()}else{pointer=e.pointerId;try{p.setPointerCapture(pointer)}catch{};start()}});
- p.addEventListener("pointerup",e=>{e.preventDefault();if($("#rtcPTTToggle")?.checked)return;if(pointer===e.pointerId){pointer=null;stop()}});
- p.addEventListener("pointercancel",e=>e.preventDefault());
-}
 function bindDrillPTT(){
  const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");
  rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras"});
