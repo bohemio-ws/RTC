@@ -167,7 +167,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
  const down=e=>{if(e.pointerType==="mouse"&&e.button!==0)return;e.preventDefault();if(held)return;try{p.setPointerCapture(e.pointerId)}catch{};try{speechSynthesis.cancel()}catch{};seq++;held=true;active=false;starting=false;ending=false;error="";full="";partial="";startedAt=performance.now();p.classList.add("live");render();status.textContent="Preparando micrófono…";launch()};
  const up=e=>{e.preventDefault();if(!held)return;held=false;try{if(p.hasPointerCapture(e.pointerId))p.releasePointerCapture(e.pointerId)}catch{};if(rec&&(active||starting)){ending=true;try{rec.stop()}catch{finish()}}else finish()};
  p.addEventListener("pointerdown",down);p.addEventListener("pointerup",up);p.addEventListener("pointercancel",up);p.addEventListener("lostpointercapture",()=>{if(held){held=false;try{rec?.stop()}catch{};finish()}});
- window.addEventListener("blur",()=>{if(held){held=false;try{rec?.stop()}catch{};finish()}},{once:true});
+ window.addEventListener("blur",()=>{if(held){held=false;try{rec?.stop()}catch{};finish()}});
 }
 function bindDrillPTT(){
  const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");
