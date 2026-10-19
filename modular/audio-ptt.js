@@ -43,6 +43,8 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
      note.textContent="NO EVALUABLE: "+res.reason+". Repite la transmisión o revisa el audio.";
     }
    });
+  }else{
+   note.textContent="NO EVALUABLE POR VOZ: falta instalar el motor local. La revisión manual solo permite practicar el texto.";
   }
  }
  function stop(){
