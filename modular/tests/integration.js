@@ -9,6 +9,9 @@ assert.equal(vm.runInContext('rtcPhraseologyIssues("ROGER").length',context),1);
 assert.equal(vm.runInContext('rtcPhraseologyIssues("NEGATIVO").length',context),0);
 assert.equal(vm.runInContext('rtcPhraseologyIssues("AFIRMATIVO").length',context),0);
 assert.equal(vm.runInContext('norm("Pista DOS CUATRO")',context),"pista dos cuatro");
+assert.equal(vm.runInContext('callsignFromSpeech("Eco Charlie Romeo Tango Charlie")',context),"EC-RTC");
+assert.equal(vm.runInContext('rtcEmergencyPhonetics("MAYDEN MAYDEN MAYDEN")',context),"MAYDAY MAYDAY MAYDAY");
+assert.equal(vm.runInContext('speechForAviation("pista 24")',context),"pista dos, cuatro");
 vm.runInContext(read("asr-local.js"),context,{filename:"asr-local.js"});
 (async()=>{
  const empty=await vm.runInContext('rtcLocalASR.transcribe(new Blob([]),null)',context);
