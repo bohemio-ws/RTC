@@ -1,0 +1,28 @@
+"use strict";
+const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
+const root=require("node:path").join(__dirname,"..");
+const read=f=>fs.readFileSync(require("node:path").join(root,f),"utf8");
+const context=vm.createContext({console,Blob,URL,window:{},document:{},navigator:{}});
+vm.runInContext(read("aviation.js"),context,{filename:"aviation.js"});
+assert.equal(vm.runInContext('RTC_PHRASEOLOGY.negative',context),"NEGATIVO");
+assert.equal(vm.runInContext('rtcPhraseologyIssues("ROGER").length',context),1);
+assert.equal(vm.runInContext('rtcPhraseologyIssues("NEGATIVO").length',context),0);
+assert.equal(vm.runInContext('rtcPhraseologyIssues("AFIRMATIVO").length',context),0);
+assert.equal(vm.runInContext('norm("Pista DOS CUATRO")',context),"pista dos cuatro");
+vm.runInContext(read("asr-local.js"),context,{filename:"asr-local.js"});
+(async()=>{
+ const empty=await vm.runInContext('rtcLocalASR.transcribe(new Blob([]),null)',context);
+ assert.equal(empty.status,"NO_EVALUABLE");
+ const missing=await vm.runInContext('rtcLocalASR.transcribe(new Blob(["audio"]),null)',context);
+ assert.equal(missing.status,"NO_EVALUABLE");
+ const good=await vm.runInContext('rtcLocalASR.transcribe(new Blob(["audio"]),{local:true,transcribe:async()=>({text:"EC RTC, pista dos cuatro",complete:true})})',context);
+ assert.equal(good.status,"OK");
+ const uncertain=await vm.runInContext('rtcLocalASR.transcribe(new Blob(["audio"]),{local:true,transcribe:async()=>({text:"pista",complete:false})})',context);
+ assert.equal(uncertain.status,"NO_EVALUABLE");
+ const scripts=["data.js","aviation.js","asr-local.js","whisper-engine.js","audio-ptt.js","training.js","exams-simulator.js"];
+ const html=read("index.html");
+ for(const file of scripts)assert(html.includes('src="'+file+'"'),"Módulo ausente: "+file);
+ assert(html.indexOf('src="aviation.js"')<html.indexOf('src="training.js"'));
+ assert(html.indexOf('src="training.js"')<html.indexOf('src="exams-simulator.js"'));
+ console.log("PASS: fraseología, ASR local, estados NO EVALUABLE y carga modular");
+})().catch(e=>{console.error(e);process.exitCode=1});
