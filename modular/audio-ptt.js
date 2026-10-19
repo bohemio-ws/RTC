@@ -3,7 +3,7 @@
 // El estado de grabación depende del usuario, no del silencio.
 function rtcHoldRecognizer(p,status,onWords,onFinish){
  rtcPTTGuard(p);
- let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,session=0,pointer=null,disposed=false;
+ let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,endedAt=0,session=0,pointer=null,disposed=false;
  const controls=document.createElement("div");controls.id="rtcAudioControls";p.textContent="PTT · TOCA PARA HABLAR";
  const label=document.createElement("label");
  const toggle=document.createElement("input");toggle.type="checkbox";toggle.checked=true;toggle.id="rtcPTTToggle";
@@ -25,13 +25,13 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
   const note=document.createElement("p");note.textContent="Audio grabado. El reconocimiento local automático aún no está integrado. La evaluación del texto manual no verifica pronunciación ni recepción de radio.";
   const area=document.createElement("textarea");area.placeholder="Transcripción revisada de la comunicación";
   const btn=document.createElement("button");btn.className="btn primary";btn.textContent="Evaluar texto revisado";
-  btn.addEventListener("click",()=>{const t=area.value.trim();if(!t){status.textContent="Primero revisa y escribe la comunicación.";return}onFinish(t,(performance.now()-startedAt)/1000)});
+  btn.addEventListener("click",()=>{const t=area.value.trim();if(!t){status.textContent="Primero revisa y escribe la comunicación.";return}onFinish(t,Math.max(0,(endedAt-startedAt)/1000))});
   result.append(audio,note,area,btn);
  }
  function stop(){
   if(state==="requesting"){session++;reset("Micrófono aún sin activar: no se ha grabado audio. Pulsa PTT de nuevo cuando concedas permiso.");return}
   if(state!=="recording")return;
-  setState("stopping","Finalizando grabación…");
+  endedAt=performance.now();setState("stopping","Finalizando grabación…");
   try{if(recorder&&recorder.state!=="inactive")recorder.stop();else reset("No se pudo completar la grabación.")}
   catch(e){reset("Error al detener la grabación: "+e.message)}
  }
@@ -46,9 +46,9 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
    stream=obtained;
    const supported=typeof MediaRecorder.isTypeSupported==="function"&&MediaRecorder.isTypeSupported("audio/webm;codecs=opus");
    recorder=new MediaRecorder(stream,supported?{mimeType:"audio/webm;codecs=opus"}:{});
-   startedAt=performance.now();
+   startedAt=performance.now();endedAt=0;
    recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
-   recorder.onerror=()=>reset("Fallo del grabador. Revisa el permiso del micrófono.");
+   recorder.onerror=()=>{session++;if(recorder)recorder.onstop=null;reset("Fallo del grabador. Revisa el permiso del micrófono.");};
    recorder.onstop=()=>{if(token===session)finish();else release()};
    recorder.start();
    setState("recording","● GRABANDO · las pausas no detienen la transmisión");
