@@ -1,6 +1,13 @@
 "use strict";
 function safe(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function norm(t){return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?-]/g," ").replace(/\s+/g," ").trim()}
+const RTC_PHRASEOLOGY=Object.freeze({acknowledge:"RECIBIDO",negative:"NEGATIVO",affirmative:"AFIRMO",correction:"CORRECCIÓN",repeat:"REPITA",wait:"ESPERE"});
+function rtcPhraseologyIssues(text){
+ const n=norm(text),issues=[];
+ if(/\broger\b/.test(n))issues.push("En fraseología española utiliza «"+RTC_PHRASEOLOGY.acknowledge+"» para acusar recibo; no «ROGER».");
+ if(/\bnegativa\b/.test(n))issues.push("Para responder negativamente, utiliza «"+RTC_PHRASEOLOGY.negative+"».");
+ return issues;
+}
 const ICAO_PHONETIC={alfa:"A",alpha:"A",bravo:"B",charlie:"C",delta:"D",eco:"E",echo:"E",foxtrot:"F",golf:"G",hotel:"H",india:"I",juliett:"J",juliet:"J",kilo:"K",lima:"L",mike:"M",november:"N",oscar:"O",papa:"P",quebec:"Q",romeo:"R",sierra:"S",tango:"T",uniform:"U",victor:"V",whiskey:"W",whisky:"W",xray:"X",yankee:"Y",zulu:"Z"};
 function phoneticLetters(text){return norm(text).split(" ").map(w=>ICAO_PHONETIC[w]||null)}
 function callsignFromSpeech(text){
