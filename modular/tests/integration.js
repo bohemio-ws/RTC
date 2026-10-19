@@ -12,6 +12,10 @@ assert.equal(vm.runInContext('norm("Pista DOS CUATRO")',context),"pista dos cuat
 assert.equal(vm.runInContext('callsignFromSpeech("Eco Charlie Romeo Tango Charlie")',context),"EC-RTC");
 assert.equal(vm.runInContext('rtcEmergencyPhonetics("MAYDEN MAYDEN MAYDEN")',context),"MAYDAY MAYDAY MAYDAY");
 assert.equal(vm.runInContext('speechForAviation("pista 24")',context),"pista dos, cuatro");
+assert.equal(vm.runInContext('rtcRunwayFromSpeech("pista dos cuatro")',context),"24");
+assert.equal(vm.runInContext('rtcRunwayFromSpeech("pista 24")',context),"24");
+assert.equal(vm.runInContext('rtcRunwayFromSpeech("pista tres seis")',context),"36");
+assert.equal(vm.runInContext('rtcRunwayFromSpeech("pista cuatro cero")',context),"");
 vm.runInContext(read("asr-local.js"),context,{filename:"asr-local.js"});
 (async()=>{
  const empty=await vm.runInContext('rtcLocalASR.transcribe(new Blob([]),null)',context);
