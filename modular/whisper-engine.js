@@ -11,6 +11,9 @@ const rtcOfflineEngine={
   if(this._pipeline)return this._pipeline;
   if(this._loading)return this._loading;
   this._loading=(async()=>{
+   const runtime="./vendor/transformers.min.js";
+   const runtimeCheck=await fetch(runtime,{method:"HEAD",cache:"no-store"}).catch(()=>null);
+   if(!runtimeCheck?.ok)throw Error("Falta el runtime local de Whisper: "+runtime);
    const {pipeline,env}=await import("./vendor/transformers.min.js");
    env.allowRemoteModels=false;
    env.allowLocalModels=true;
@@ -37,6 +40,7 @@ const rtcOfflineEngine={
    for(let i=0;i<mono.length;i++)mono[i]+=channel[i]/decoded.numberOfChannels;
   }
   // Interpolación lineal determinista a 16 kHz, sin servicios externos.
+  if(!mono.length||!Number.isFinite(sourceRate)||sourceRate<=0)throw Error("Audio sin muestras válidas");
   const n=Math.max(1,Math.round(mono.length*targetRate/sourceRate));
   const samples=new Float32Array(n);
   for(let i=0;i<n;i++){
