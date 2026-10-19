@@ -25,7 +25,9 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
   const note=document.createElement("p");note.textContent="Audio grabado. El reconocimiento local automático aún no está integrado. La evaluación del texto manual no verifica pronunciación ni recepción de radio.";
   const area=document.createElement("textarea");area.placeholder="Transcripción revisada de la comunicación";
   const btn=document.createElement("button");btn.className="btn primary";btn.textContent="Evaluar texto revisado";
-  btn.addEventListener("click",()=>{const t=area.value.trim();if(!t){status.textContent="Primero revisa y escribe la comunicación.";return}onFinish(t,Math.max(0,(endedAt-startedAt)/1000))});
+  let submitted=false;
+  function submit(t){if(submitted||disposed||!p.isConnected)return;const value=String(t).trim();if(!value){status.textContent="Primero revisa y escribe la comunicación.";return}submitted=true;btn.disabled=true;onFinish(value,Math.max(0,(endedAt-startedAt)/1000))}
+  btn.addEventListener("click",()=>submit(area.value));
   result.append(audio,note,area,btn);
   // La transcripción automática solo se acepta desde un motor local instalado.
   // Una respuesta tardía de una grabación anterior nunca modifica la actual.
@@ -38,7 +40,8 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
     if(res.status==="OK"){
      area.value=res.text;
      onWords(res.text);
-     note.textContent="Transcripción automática local: comprueba el texto antes de evaluar.";
+     note.textContent="Transcripción automática local: evaluación iniciada. Puedes reproducir el audio para revisarlo.";
+     submit(res.text);
     }else{
      note.textContent="NO EVALUABLE: "+res.reason+". Repite la transmisión o revisa el audio.";
     }
