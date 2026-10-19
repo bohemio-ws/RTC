@@ -4,13 +4,13 @@
 function rtcHoldRecognizer(p,status,onWords,onFinish){
  rtcPTTGuard(p);
  let state="idle",recorder=null,stream=null,chunks=[],audioUrl=null,startedAt=0,session=0,pointer=null,disposed=false;
- const controls=document.createElement("div");controls.id="rtcAudioControls";
+ const controls=document.createElement("div");controls.id="rtcAudioControls";p.textContent="PTT · TOCA PARA HABLAR";
  const label=document.createElement("label");
  const toggle=document.createElement("input");toggle.type="checkbox";toggle.checked=true;toggle.id="rtcPTTToggle";
  label.append(toggle,document.createTextNode(" Modo recomendado: tocar una vez para grabar y otra para terminar (desmarca para mantener pulsado)"));
  const result=document.createElement("div");result.id="rtcAudioResult";controls.append(label,result);
  p.insertAdjacentElement("afterend",controls);
- function setState(next,msg){state=next;p.classList.toggle("live",next==="recording");p.setAttribute("aria-pressed",String(next==="recording"));if(msg)status.textContent=msg}
+ function setState(next,msg){state=next;p.classList.toggle("live",next==="recording");p.setAttribute("aria-pressed",String(next==="recording"));p.textContent=next==="recording"?"● GRABANDO · TOCA PARA TERMINAR":next==="requesting"?"PERMISO DEL MICRÓFONO…":next==="stopping"?"FINALIZANDO…":"PTT · TOCA PARA HABLAR";if(msg)status.textContent=msg}
  function release(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
  function revoke(){if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null}}
  function reset(msg){release();recorder=null;if(!disposed)setState("idle",msg)}
@@ -55,7 +55,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
 
   }catch(e){if(token===session)reset("No se pudo iniciar el micrófono: "+e.message);else if(obtained)obtained.getTracks().forEach(t=>t.stop())}
  }
- function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";p.classList.remove("live");p.setAttribute("aria-pressed","false");observer.disconnect()}
+ function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";p.classList.remove("live");p.setAttribute("aria-pressed","false");p.textContent="PTT · TOCA PARA HABLAR";observer.disconnect()}
  const observer=new MutationObserver(()=>{if(!p.isConnected)dispose()});
  observer.observe(document.body,{childList:true,subtree:true});
  // El modo principal usa CLICK: una pulsación inicia, otra detiene.
