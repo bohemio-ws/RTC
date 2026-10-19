@@ -1,0 +1,37 @@
+/* RTC Academy — identidad visual aeronáutica, capa global independiente v1 */
+:root{color-scheme:light;--bg:#e9dfc9;--panel:#fff8e9;--line:#b69a6e;--txt:#352c22;--dim:#665b4b;--red:#a33435;--green:#286d4e;--yellow:#92671d}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:linear-gradient(180deg,#293e49 0 185px,#d4c4a4 185px,#f0e5cd 100%);color:var(--txt);font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.55}
+header{background:linear-gradient(115deg,#263c49,#3c4d4e);color:#f6e8c9;border-bottom:5px solid #b78d4d;box-shadow:0 5px 18px #0003;padding:18px clamp(14px,3vw,30px);gap:15px;flex-wrap:wrap}
+header h1{font-family:Georgia,serif;font-size:clamp(22px,3.5vw,33px);color:#fff0d1}
+header small{color:#e9d8b6}
+.brandLogo{width:72px;height:72px;object-fit:contain;background:#fff4dc;border:3px solid #bd975a;padding:3px;border-radius:6px}
+main{max-width:1040px;padding:clamp(12px,3vw,28px);background:#f3e8d2;border:7px solid #715139;outline:2px solid #bd965d;box-shadow:0 12px 38px #0004;margin:22px auto 50px;border-radius:6px}
+h2,h3{font-family:Georgia,'Times New Roman',serif;color:#503622}
+h2{font-size:clamp(24px,3.4vw,34px)}
+h3{font-size:clamp(19px,2.6vw,24px)}
+.card,.lesson{background:linear-gradient(135deg,#fffaf0,#eee0c1);border:1px solid #bea47a;border-radius:7px;box-shadow:0 3px 9px #47351d1a;color:#3f3326}
+.lesson summary{color:#563e28;font-weight:700;min-height:44px;cursor:pointer}
+.lesson .practice{border-left-color:#9b6936}
+.trainingBanner{background:#e8d6b1;border:1px solid #b59b70;color:#473622}
+small,.muted{color:#695b48}
+.btn,button,select,input,textarea{font-family:inherit;font-size:16px;max-width:100%}
+.btn,button{cursor:pointer;min-height:44px}
+.btn,select,input,textarea{background:#fff8e8;color:#372b20;border:1px solid #9e805a;border-radius:5px;padding:11px}
+.btn.primary,.primary{background:#65432c;color:#fff5df;border-color:#65432c}
+.btn:hover,button:hover{filter:brightness(.95)}
+.ptt{background:#a22d34;color:white;border:6px solid #6b2026;font-family:system-ui,sans-serif;box-shadow:0 6px 20px #4d282533}
+.ptt.live{box-shadow:0 0 0 12px #bc4a4a40}
+.radio{background:#344b55;color:#f9f1e4;border:2px solid #a98b59}
+.radio *{color:inherit}
+.bar{background:#c9b995}
+.bar>i{background:#497d75}
+.tag{background:#e1d0ae;color:#503b27;border:1px solid #b49b70}
+.feedback{background:#fff7e6;border-left:5px solid #ad7b35;color:#443422}
+.good{color:#216448}.bad{color:#a32d32}.warn{color:#7c571b}
+.line{border-bottom:1px solid #c9b18b}
+.map{border:2px solid #ae946d;background:#dbe4dd}
+:focus-visible{outline:3px solid #a43e2e;outline-offset:3px}
+@media(max-width:600px){header{align-items:center;justify-content:center;text-align:center}header .brandLine{justify-content:center;flex-wrap:wrap}main{margin:12px 8px 28px;border-width:4px;padding:14px}.grid{grid-template-columns:1fr}.card,.lesson{padding:14px}.btn,button{white-space:normal}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
