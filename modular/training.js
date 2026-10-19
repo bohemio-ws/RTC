@@ -64,8 +64,8 @@ function rtcCorrectionInfo(text){
 }
 function rtcPhraseIssues(t){
  const n=norm(t),issues=[];
- if(/\bafirmativo\b/.test(n))issues.push("En este entrenador de fraseología española: utiliza «AFIRMA», no «afirmativo».");
- if(/\broger\b/.test(n))issues.push("En este entrenador de fraseología española: evita «ROGER»; usa «AFIRMA» cuando corresponda, o una colación específica.");
+ if(/\bafirmativo\b/.test(n))issues.push("En este entrenador de fraseología española: utiliza «AFIRMO», no «afirmativo».");
+ if(/\broger\b/.test(n))issues.push("En este entrenador de fraseología española: evita «ROGER»; usa «RECIBIDO» para acusar recibo o «AFIRMO» para una respuesta afirmativa, según corresponda.");
  if(/\bnegativa\b/.test(n))issues.push("Para responder negativamente, utiliza «NEGATIVO».");
  return issues;
 }
