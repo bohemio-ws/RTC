@@ -10,7 +10,7 @@ function delay(t=0){return new Promise(r=>setTimeout(r,t))}
 async function test(name,fn){try{await fn();log.textContent+="✔ "+name+"\n"}catch(e){errors.push(name+": "+e.message);log.textContent+="✘ "+name+": "+e.message+"\n"}}
 let pending=null,tracks=0,starts=0,stops=0,blobs=0;
 class FakeRecorder{
- constructor(stream){this.stream=stream;this.state="inactive";this.mimeType="audio/webm"}
+ constructor(stream){this.stream=stream;this.state="inactive";this.mimeType="audio/webm";window.__rtcLastFakeRecorder=this}
  static isTypeSupported(){return true}
  start(){starts++;this.state="recording"}
  stop(){stops++;this.state="inactive";this.ondataavailable?.({data:new Blob(["voz"])});this.onstop?.()}
@@ -41,6 +41,20 @@ function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {
   area.value="EC RTC en plataforma, solicito información";
   btn.click();
   assert(measured>=0&&measured<0.9,"el tiempo de revisión contaminó la duración de radio");
+  controller.dispose();
+ });
+ await test("Interrupción inesperada: no evalúa audio incompleto",async()=>{
+  [p,status]=mount();controller=rtcHoldRecognizer(p,status,()=>{},()=>{throw Error("Evaluación indebida")});
+  tap(p);await delay();
+  const old=starts;
+  assert(controller.getState()==="recording","no comenzó");
+  const audioRecorder=window.__rtcLastFakeRecorder;
+  assert(!!audioRecorder,"sin grabador de prueba");
+  audioRecorder.state="inactive";audioRecorder.onstop?.();
+  await delay();
+  assert(controller.getState()==="idle","no recupera el estado");
+  assert(!bed.querySelector("audio"),"aceptó audio incompleto");
+  assert(starts===old,"se reinició sin orden");
   controller.dispose();
  });
  await test("Un pointerdown aislado no activa el modo alterno",async()=>{
