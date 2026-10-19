@@ -12,13 +12,12 @@ const rtcOfflineEngine={
   if(this._loading)return this._loading;
   this._loading=(async()=>{
    const runtime="./vendor/transformers.min.js";
-   const runtimeCheck=await fetch(runtime,{method:"HEAD",cache:"no-store"}).catch(()=>null);
-   if(!runtimeCheck?.ok)throw Error("Falta el runtime local de Whisper: "+runtime);
+   // No depender de HEAD: algunos servidores estáticos lo rechazan aunque sirvan GET.
    const {pipeline,env}=await import("./vendor/transformers.min.js");
    env.allowRemoteModels=false;
    env.allowLocalModels=true;
    env.localModelPath=new URL("./models/",document.baseURI).pathname;
-   env.backends.onnx.wasm.wasmPaths="./vendor/";
+   env.backends.onnx.wasm.wasmPaths=new URL("./vendor/",document.baseURI).href;
    const recognizer=await pipeline("automatic-speech-recognition","Xenova/whisper-tiny",{dtype:"q8",device:"wasm"});
    this._pipeline=recognizer;
    return recognizer;
