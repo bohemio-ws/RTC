@@ -57,12 +57,39 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
  function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";p.classList.remove("live");p.setAttribute("aria-pressed","false");observer.disconnect()}
  const observer=new MutationObserver(()=>{if(!p.isConnected)dispose()});
  observer.observe(document.body,{childList:true,subtree:true});
- p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;
-  if(toggle.checked){if(state==="idle")start();else if(state==="recording"||state==="requesting")stop()}
-  else{pointer=e.pointerId;try{p.setPointerCapture(pointer)}catch{}start()}
+ // El modo principal usa CLICK: una pulsación inicia, otra detiene.
+ // No depende de pointerdown/pointerup, evitando dobles activaciones en Android.
+ p.addEventListener("click",e=>{
+  e.preventDefault();
+  if(disposed||!toggle.checked)return;
+  if(state==="idle")start();
+  else if(state==="recording"||state==="requesting")stop();
  });
- p.addEventListener("pointerup",e=>{e.preventDefault();if(!toggle.checked&&pointer===e.pointerId){pointer=null;stop()}});
- p.addEventListener("pointercancel",e=>{e.preventDefault();if(!toggle.checked&&pointer===e.pointerId){pointer=null;stop()}});
+ // Modo opcional mantener pulsado: solo aquí se captura el puntero.
+ p.addEventListener("pointerdown",e=>{
+  if(disposed||toggle.checked)return;
+  if(e.pointerType==="mouse"&&e.button!==0)return;
+  e.preventDefault();pointer=e.pointerId;
+  try{p.setPointerCapture(pointer)}catch{}
+  start();
+ });
+ p.addEventListener("pointerup",e=>{
+  if(toggle.checked||pointer!==e.pointerId)return;
+  e.preventDefault();pointer=null;stop();
+ });
+ p.addEventListener("pointercancel",e=>{
+  if(toggle.checked||pointer!==e.pointerId)return;
+  e.preventDefault();pointer=null;stop();
+ });
+ p.addEventListener("lostpointercapture",()=>{if(!toggle.checked&&pointer!==null){pointer=null;stop()}});
+ p.addEventListener("contextmenu",e=>e.preventDefault());
+ p.addEventListener("selectstart",e=>e.preventDefault());
+ p.addEventListener("dragstart",e=>e.preventDefault());
+ p.style.touchAction="manipulation";
+ p.style.userSelect="none";
+ p.style.webkitUserSelect="none";
+ p.style.webkitTouchCallout="none";
+ toggle.addEventListener("change",()=>{pointer=null;if(state==="requesting"||state==="recording")stop()});
  window.addEventListener("pagehide",dispose,{once:true});
  return {start,stop,dispose,getState:()=>state};
 }
