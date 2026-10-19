@@ -82,6 +82,7 @@ function speechForAviation(t){
  x=x.replace(/\bQNH[\s:=-]*(\d{4})\b/gi,(_,v)=>"Q N H, "+rtcSpeakDigits(v));
  x=x.replace(/\bQNH\b/gi,"Q N H");
  x=x.replace(/\b(pista\s+)(\d{2})\b/gi,(_,prefix,v)=>prefix+rtcSpeakDigits(v));
+ x=x.replace(/\b(altitud|altura|nivel|rumbo|transpondedor|codigo|código|sqwk|squawk)\s*[:=-]?\s*(\d{2,5})\b/gi,(_,prefix,v)=>prefix+" "+rtcSpeakDigits(v));
  x=x.replace(/\b(frecuencia\s+)(1\d{2})[.,](\d{1,3})\b/gi,(_,prefix,a,b)=>prefix+rtcSpeakDigits(a)+", decimal, "+rtcSpeakDigits(b.padEnd(3,"0")));
  return x
 }
