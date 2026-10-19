@@ -54,7 +54,7 @@ function rtcHoldRecognizer(p,status,onWords,onFinish){
    setState("recording","● GRABANDO · las pausas no detienen la transmisión");
   }catch(e){if(token===session)reset("No se pudo iniciar el micrófono: "+e.message);else if(obtained)obtained.getTracks().forEach(t=>t.stop())}
  }
- function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";observer.disconnect()}
+ function dispose(){if(disposed)return;disposed=true;session++;if(recorder&&recorder.state!=="inactive"){recorder.onstop=null;try{recorder.stop()}catch{}}release();revoke();state="idle";p.classList.remove("live");p.setAttribute("aria-pressed","false");observer.disconnect()}
  const observer=new MutationObserver(()=>{if(!p.isConnected)dispose()});
  observer.observe(document.body,{childList:true,subtree:true});
  p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;
