@@ -44,7 +44,14 @@ approach:["Aproximación de emergencia","El avión realiza una aproximación de 
 const route=["platform","taxi","hold","lineup","departure","upwind","exit","enroute","arrival","downwind","base","final","landing","parking"];
 let st={mode:null,from:fields[0],to:fields[1],leg:0,step:0,steps:[],scores:[],events:[],transcript:"",done:false,waiting:false,rec:null,recFinal:"",error:"",micBusy:false};
 function safe(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function norm(t){return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?-]/g," ").replace(/\s+/g," ").trim()}
+function norm(t){
+ let value=String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?-]/g," ").replace(/\s+/g," ").trim();
+ // Errores de segmentación habituales del dictado: «q NH», «Q N H», «cu ene hache».
+ // Solo se unifican las letras del código Q; no se corrigen cifras ni datos críticos.
+ value=value.replace(/\b(?:q\s*n\s*h|cu\s+ene\s+hache|que\s+ene\s+hache)\b/g,"qnh");
+ value=value.replace(/\b(?:q\s*f\s*e|cu\s+efe\s+e|que\s+efe\s+e)\b/g,"qfe");
+ return value;
+}
 const ICAO_PHONETIC={alfa:"A",alpha:"A",bravo:"B",charlie:"C",delta:"D",eco:"E",echo:"E",foxtrot:"F",golf:"G",hotel:"H",india:"I",juliett:"J",juliet:"J",kilo:"K",lima:"L",mike:"M",november:"N",oscar:"O",papa:"P",quebec:"Q",romeo:"R",sierra:"S",tango:"T",uniform:"U",victor:"V",whiskey:"W",whisky:"W",xray:"X",yankee:"Y",zulu:"Z"};
 function phoneticLetters(text){return norm(text).split(" ").map(w=>ICAO_PHONETIC[w]||null)}
 function callsignFromSpeech(text){
