@@ -1,7 +1,7 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071426"><title>RTC Academy · Simulador integrado v0.20</title><link rel="icon" type="image/svg+xml" href="logo-bohemio.jpg"><style>
 :root{color-scheme:dark;--bg:#071426;--panel:#10263c;--line:#34536c;--txt:#edf5fa;--dim:#b3c5d1;--red:#d52e36;--green:#6de0aa;--yellow:#f4c65c}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:16px system-ui,sans-serif;padding-bottom:45px}header{padding:14px 18px;border-bottom:1px solid var(--line);background:#0b1e31;display:flex;justify-content:space-between;align-items:center}h1{font-size:20px;margin:0}.brandLogo{width:70px;height:70px;object-fit:contain;border-radius:9px;margin-right:12px}.brandLine{display:flex;align-items:center}h2{font-size:21px;margin:4px 0 12px}h3{font-size:17px}small,.muted{color:var(--dim)}main{max-width:860px;margin:auto;padding:15px}.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px;margin-bottom:13px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.btn,select,input{font:inherit;color:var(--txt);background:#193852;border:1px solid #4b6d86;border-radius:10px;padding:12px}.btn{cursor:pointer;min-height:45px}.primary{background:#bd2631;border-color:#e55359}.good{color:var(--green)}.bad{color:#ff7777}.warn{color:var(--yellow)}.ptt{display:block;margin:14px auto;border-radius:50%;width:150px;height:150px;border:6px solid #8b161f;background:#d6303b;color:white;font-size:21px;font-weight:800;touch-action:none}.ptt,.ptt *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent;touch-action:none;overscroll-behavior:contain}.ptt.live{box-shadow:0 0 0 12px #e13b3b33}.radio{padding:12px;background:#06101e;border:1px solid var(--line);border-radius:9px;margin:9px 0}.bar{height:8px;background:#091b2a;border-radius:8px;overflow:hidden}.bar>i{display:block;height:100%;background:#49b6c3;transition:width .4s}.line{padding:7px 0;border-bottom:1px solid #35516a}.map{width:100%;height:auto;display:block;background:#0c2736;border-radius:12px;border:1px solid #3b6175}.tag{display:inline-block;background:#24455e;padding:5px 9px;border-radius:18px;font-size:12px}.choice{display:flex;gap:8px;flex-wrap:wrap}.choice .btn{flex:1}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.k{color:#ff8581;font-size:12px;letter-spacing:.1em;font-weight:bold}.feedback{border-left:4px solid #f1bb59}.flight{color:#7de1ee;font-weight:bold}textarea{width:100%;min-height:72px;background:#071827;border:1px solid #42627b;border-radius:9px;color:white;padding:10px;font:inherit}label{display:block;margin:8px 0 5px}select{width:100%}@media(max-width:500px){.grid{grid-template-columns:1fr}header{align-items:flex-start}.ptt{width:140px;height:140px}}
-</style><style>.lesson{border:1px solid #45617a;border-radius:12px;margin:9px 0;padding:12px;background:#112b42}.lesson summary{cursor:pointer;font-weight:700}.lesson p{line-height:1.55}.lesson .practice{border-left:3px solid #e8bd65;padding-left:12px}.trainingBanner{padding:12px;border:1px solid #5d7180;border-radius:10px;background:#183349;margin-bottom:12px}</style><link rel="stylesheet" href="rtc-academy-theme.css?v=1"></head><body><header><div class="brandLine"><img class="brandLogo" src="logo-bohemio.jpg" alt="Logotipo oficial Bohemio 4 Infinity"><div><small>BOHEMIO 4 INFINITY · ACADEMY</small><h1>RTC · Entrenador visual</h1><small>Bohemio 4 Infinity</small></div></div><small>VERSIÓN 0.59 · 19 OCT 2026 · EC-RTC</small></header><main id="app"></main><script>
+</style><style>.lesson{border:1px solid #45617a;border-radius:12px;margin:9px 0;padding:12px;background:#112b42}.lesson summary{cursor:pointer;font-weight:700}.lesson p{line-height:1.55}.lesson .practice{border-left:3px solid #e8bd65;padding-left:12px}.trainingBanner{padding:12px;border:1px solid #5d7180;border-radius:10px;background:#183349;margin-bottom:12px}</style><link rel="stylesheet" href="rtc-academy-theme.css?v=1"></head><body><header><div class="brandLine"><img class="brandLogo" src="logo-bohemio.jpg" alt="Logotipo oficial Bohemio 4 Infinity"><div><small>BOHEMIO 4 INFINITY · ACADEMY</small><h1>RTC · Entrenador visual</h1><small>Bohemio 4 Infinity</small></div></div><small>VERSIÓN 0.67 · 20 OCT 2026 · EC-RTC</small></header><main id="app"></main><script>
 "use strict";
 const $=s=>document.querySelector(s), app=$("#app"), SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const CALLSIGN="EC-RTC";
@@ -100,10 +100,18 @@ function rtcChooseAlternative(result){
 }
 function phoneticDisplay(text){const words=String(text).split(/(\s+)/);return words.map(w=>ICAO_PHONETIC[norm(w)]||w).join("")}
 function rtcSpeakDigits(value){const d={"0":"cero","1":"uno","2":"dos","3":"tres","4":"cuatro","5":"cinco","6":"seis","7":"siete","8":"ocho","9":"nueve"};return String(value).split("").map(c=>d[c]||c).join(", ")}
+
+function rtcSpeakNumberES(n){
+ n=Math.trunc(Number(n));const u=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince","dieciséis","diecisiete","dieciocho","diecinueve","veinte","veintiuno","veintidós","veintitrés","veinticuatro","veinticinco","veintiséis","veintisiete","veintiocho","veintinueve"];
+ if(n<30)return u[n]||String(n);if(n<100){const t=["","","veinte","treinta","cuarenta","cincuenta","sesenta","setenta","ochenta","noventa"],d=Math.floor(n/10),r=n%10;return t[d]+(r?" y "+u[r]:"")}
+ const h={100:"cien",200:"doscientos",300:"trescientos",400:"cuatrocientos",500:"quinientos",600:"seiscientos",700:"setecientos",800:"ochocientos",900:"novecientos"};if(n<1000){const q=Math.floor(n/100)*100,r=n%100;if(q===100&&r)return "ciento "+rtcSpeakNumberES(r);return h[q]+(r?" "+rtcSpeakNumberES(r):"")}
+ if(n<10000){const q=Math.floor(n/1000),r=n%1000;return (q===1?"mil":rtcSpeakNumberES(q)+" mil")+(r?" "+rtcSpeakNumberES(r):"")}return String(n)
+}
 function speechForAviation(t){
  let x=String(t);
+ x=x.replace(/\b(\d{2,4})\s+(pies|pie)\b/gi,(_,v,u)=>rtcSpeakNumberES(Number(v))+" "+u);
  x=x.replace(/\bEC[\s-]*RTC\b/gi,"Eco, Charlie, Romeo, Tango, Charlie");
- x=x.replace(/\bQNH[\s:=-]*(\d{4})\b/gi,(_,v)=>"Q N H, "+rtcSpeakDigits(v));
+ x=x.replace(/\bQNH[\s:=-]*(\d{4})\b/gi,(_,v)=>"Q N H, "+rtcSpeakNumberES(Number(v)));
  x=x.replace(/\bQNH\b/gi,"Q N H");
  x=x.replace(/\b(pista\s+)(\d{2})\b/gi,(_,prefix,v)=>prefix+rtcSpeakDigits(v));
  x=x.replace(/\b(frecuencia\s+)(1\d{2})[.,](\d{1,3})\b/gi,(_,prefix,a,b)=>prefix+rtcSpeakDigits(a)+", decimal, "+rtcSpeakDigits(b.padEnd(3,"0")));
@@ -147,7 +155,7 @@ function training(){app.innerHTML=`<div class="row"><button class="btn" id="back
 let drillIdx=0,drillAttempts={},drillResults=[];
 function drillHome(){app.innerHTML='<div class="row"><button class="btn" id="back">← Inicio</button><span class="tag">LABORATORIO DE FRASEOLOGÍA</span></div><section class="card"><h2>Prácticas guiadas</h2><p>Primero estudia la situación. Después habla por PTT o escribe. Compara tu transmisión con un ejemplo didáctico.</p><p class="warn">La comprobación es parcial: una coincidencia textual no acredita corrección normativa, fonética ni operacional.</p></section>'+drills.map((d,i)=>'<button class="btn" style="display:block;width:100%;text-align:left;margin:8px 0" data-drill="'+i+'">'+(i+1)+'. '+safe(d.title)+' <small>· '+(drillAttempts[i]||0)+' intentos</small></button>').join('');$("#back").onclick=menu;document.querySelectorAll("[data-drill]").forEach(b=>b.onclick=()=>drillShow(+b.dataset.drill))}
 let rtcLastTiming=null;
-function drillShow(i){rtcLastTiming=null;drillIdx=i;const d=drills[i];app.innerHTML='<div class="row"><button class="btn" id="back">← Prácticas</button><span class="tag">EJERCICIO '+(i+1)+'/'+drills.length+' · v0.59</span></div><section class="card"><h2>'+safe(d.title)+'</h2><p>'+safe(d.question)+'</p><div class="radio">Habla de forma clara. Si te equivocas, di «CORRECCIÓN» y transmite el dato correcto sin empezar de nuevo. No supongas autorizaciones.</div><button class="btn" id="hear">🔊 Escuchar situación</button><div class="line"><label for="rtcNoise">Condiciones de recepción (solo audio de escucha): </label><select id="rtcNoise"><option value="0">Limpia</option><option value="1">Ruido leve</option><option value="2">Ruido intenso (entrenamiento)</option></select></div></section><section class="card"><div class="k">TRANSMITE</div><button class="ptt" id="ptt">MANTENER<br>PTT</button><div id="status" class="muted">Toca PTT para iniciar y vuelve a tocar para terminar.</div><div class="radio" id="out">La grabación se reproducirá aquí.</div><textarea id="drillText" placeholder="O escribe aquí para practicar sin micrófono"></textarea><button class="btn primary" id="checkDrill">Evaluar mi comunicación</button><div id="feedback"></div></section>';$("#back").onclick=drillHome;$("#rtcNoise").value=String(rtcNoiseLevel);$("#rtcNoise").onchange=e=>{rtcNoiseLevel=Number(e.target.value);rtcStopNoise()};$("#hear").onclick=()=>rtcReceive(d.question);$("#checkDrill").onclick=()=>drillCheck($("#drillText").value||$("#out").textContent);bindDrillPTT()}
+function drillShow(i){rtcLastTiming=null;drillIdx=i;const d=drills[i];app.innerHTML='<div class="row"><button class="btn" id="back">← Prácticas</button><span class="tag">EJERCICIO '+(i+1)+'/'+drills.length+' · v0.59</span></div><section class="card"><h2>'+safe(d.title)+'</h2><p>'+safe(d.question)+'</p><div class="radio">Habla de forma clara. Si te equivocas, di «CORRECCIÓN» y transmite el dato correcto sin empezar de nuevo. No supongas autorizaciones.</div><button class="btn" id="hear">🔊 Escuchar situación</button><div class="line"><label for="rtcNoise">Condiciones de recepción (solo audio de escucha): </label><select id="rtcNoise"><option value="0">Limpia</option><option value="1">Ruido leve</option><option value="2">Ruido intenso (entrenamiento)</option></select></div></section><section class="card"><div class="k">TRANSMITE</div><button class="ptt" id="ptt">MANTENER<br>PTT</button><div id="status" class="muted">Mantén PTT pulsado para hablar y suelta para finalizar, transcribir y evaluar.</div><div class="radio" id="out">La transcripción aparecerá aquí mientras hablas.</div><textarea id="drillText" placeholder="O escribe aquí para practicar sin micrófono"></textarea><button class="btn primary" id="checkDrill">Evaluar mi comunicación</button><div id="feedback"></div></section>';$("#back").onclick=drillHome;$("#rtcNoise").value=String(rtcNoiseLevel);$("#rtcNoise").onchange=e=>{rtcNoiseLevel=Number(e.target.value);rtcStopNoise()};$("#hear").onclick=()=>rtcReceive(d.question);$("#checkDrill").onclick=()=>drillCheck($("#drillText").value||$("#out").textContent);bindDrillPTT()}
 
 function rtcPTTGuard(p){
  p.setAttribute("type","button");p.setAttribute("draggable","false");p.textContent="PTT";p.style.webkitUserSelect="none";p.style.webkitUserSelect="none";p.style.userSelect="none";p.style.webkitTouchCallout="none";p.style.touchAction="none";
@@ -155,49 +163,46 @@ function rtcPTTGuard(p){
 }
 function rtcHoldRecognizer(p,status,onWords,onFinish){
  rtcPTTGuard(p);
- let recording=false,recorder=null,stream=null,chunks=[],url=null,startedAt=0,stopping=false;
- p.insertAdjacentHTML("afterend",'<div id="rtcAudioControls"><label><input id="rtcPTTToggle" type="checkbox" checked> Modo alterno: tocar para iniciar y tocar para finalizar</label><div id="rtcAudioResult"></div></div>');
- const result=p.parentElement.querySelector("#rtcAudioResult");
- function cleanup(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
- function stop(){
-  if(!recording||stopping)return;stopping=true;recording=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");
-  status.textContent="Finalizando grabación…";
-  try{if(recorder&&recorder.state!=="inactive")recorder.stop();else cleanup()}catch(e){cleanup();status.textContent="No se pudo finalizar: "+e.message}
+ let recognition=null,pressed=false,finished=false,startedAt=0,currentText="",pointerId=null;
+ function render(text){currentText=String(text||"").trim();onWords(currentText)}
+ function finish(){
+  if(finished)return;finished=true;pressed=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");
+  status.textContent="Procesando transcripción…";
+  try{recognition?.stop()}catch(e){}
+  setTimeout(()=>{
+   const text=currentText.trim();
+   if(text){status.textContent="✓ Transcripción recibida · evaluación automática completada.";onFinish(text,Math.max(.1,(performance.now()-startedAt)/1000))}
+   else status.textContent="No se reconoció texto. Repite la transmisión; este intento no se puntúa.";
+   recognition=null;
+  },450)
  }
- async function start(){
-  if(recording||stopping)return;
-  if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){status.textContent="Este navegador no permite grabación web. Usa el campo de texto.";return}
-  recording=true;chunks=[];onWords("");result.textContent="";p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="Solicitando micrófono…";
+ function start(){
+  if(pressed)return;
+  if(!SR){status.textContent="Este navegador no ofrece reconocimiento de voz.";return}
+  pressed=true;finished=false;startedAt=performance.now();currentText="";render("");p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="● TRANSMITIENDO · mantén PTT pulsado";
   try{
-   const obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-   if(!recording){obtained.getTracks().forEach(t=>t.stop());return}
-   stream=obtained;const opts=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?{mimeType:"audio/webm;codecs=opus"}:{};
-   recorder=new MediaRecorder(stream,opts);startedAt=performance.now();
-   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
-   recorder.onerror=()=>{status.textContent="Error de grabación. Comprueba el permiso del micrófono."};
-   recorder.onstop=()=>{
-    cleanup();stopping=false;
-    if(url)URL.revokeObjectURL(url);
-    const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});
-    if(!blob.size){status.textContent="Grabación vacía. Vuelve a intentarlo.";return}
-    url=URL.createObjectURL(blob);result.textContent="";
-    const audio=document.createElement("audio");audio.controls=true;audio.src=url;audio.style.width="100%";result.appendChild(audio);
-    const note=document.createElement("p");note.textContent="Grabación completa. Escúchala y escribe su transcripción para evaluarla. El navegador no puede transcribir directamente este archivo con SpeechRecognition.";result.appendChild(note);
-    const area=document.createElement("textarea");area.placeholder="Transcribe aquí tu comunicación completa";result.appendChild(area);
-    const btn=document.createElement("button");btn.className="btn primary";btn.textContent="Evaluar transcripción";btn.onclick=()=>{if(!area.value.trim()){status.textContent="Escribe la comunicación antes de evaluar.";return}onFinish(area.value,(performance.now()-startedAt)/1000)};result.appendChild(btn);
-    status.textContent="Grabación finalizada. Audio disponible para revisar.";
+   recognition=new SR();recognition.lang="es-ES";recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=5;
+   recognition.onresult=e=>{
+    let finalText="",interimText="";
+    for(let i=0;i<e.results.length;i++){
+     const t=rtcChooseAlternative(e.results[i]).trim();
+     if(e.results[i].isFinal)finalText+=(finalText?" ":"")+t;else interimText+=(interimText?" ":"")+t;
+    }
+    render((finalText+" "+interimText).trim());
    };
-   recorder.start();status.textContent="● GRABANDO · las pausas no detienen la transmisión";
-  }catch(e){recording=false;stopping=false;p.classList.remove("live");cleanup();status.textContent="Micrófono no disponible: "+e.message}
+   recognition.onerror=e=>{if(!["aborted","no-speech"].includes(e.error))status.textContent="Reconocimiento de voz: "+e.error};
+   recognition.onend=()=>{if(pressed&&!finished){try{recognition.start()}catch(e){}}};
+   recognition.start();
+  }catch(e){pressed=false;finished=true;p.classList.remove("live");status.textContent="No se pudo iniciar el reconocimiento de voz."}
  }
- let pointer=null;
- p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;if($("#rtcPTTToggle")?.checked){if(recording)stop();else start()}else{pointer=e.pointerId;try{p.setPointerCapture(pointer)}catch{};start()}});
- p.addEventListener("pointerup",e=>{e.preventDefault();if($("#rtcPTTToggle")?.checked)return;if(pointer===e.pointerId){pointer=null;stop()}});
- p.addEventListener("pointercancel",e=>e.preventDefault());
+ p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;pointerId=e.pointerId;try{p.setPointerCapture(pointerId)}catch{};start()});
+ p.addEventListener("pointerup",e=>{e.preventDefault();if(pointerId===null||e.pointerId===pointerId){pointerId=null;finish()}});
+ p.addEventListener("pointercancel",e=>{e.preventDefault();pointerId=null;finish()});
+ p.addEventListener("lostpointercapture",()=>{if(pressed)finish()});
 }
 function bindDrillPTT(){
  const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");
- rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras"});
+ rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras";drillCheck(t)});
 }
 function numberIssues(i,n){
  const rules={
