@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>RTC · pruebas de fraseología</title><h1>Pruebas de fraseología española</h1><pre id="results"></pre><script>
+"use strict";
+function norm(s){return String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+function rtcPhraseIssues(t){
+ const n=norm(t),issues=[];
+ if(/\bafirmativo\b/.test(n))issues.push("En este entrenador de fraseología española: utiliza «AFIRMO», no «afirmativo».");
+ if(/\broger\b/.test(n))issues.push("En este entrenador de fraseología española: evita «ROGER»; usa «RECIBIDO» para acusar recibo o «AFIRMO» para una respuesta afirmativa, según corresponda.");
+ if(/\bnegativa\b/.test(n))issues.push("Para responder negativamente, utiliza «NEGATIVO».");
+ return issues;
+}
+
+const cases=[
+ ["AFIRMATIVO",x=>x.some(v=>v.includes("AFIRMO")),"Se corrige afirmativo a AFIRMO"],
+ ["ROGER",x=>x.some(v=>v.includes("RECIBIDO")),"Se distingue RECIBIDO de AFIRMO"],
+ ["NEGATIVA",x=>x.some(v=>v.includes("NEGATIVO")),"Se corrige negativa a NEGATIVO"],
+ ["AFIRMO",x=>x.length===0,"AFIRMO no genera advertencia"],
+ ["NEGATIVO",x=>x.length===0,"NEGATIVO no genera advertencia"]
+];
+let failures=0;const lines=cases.map(([input,check,label])=>{const ok=check(rtcPhraseIssues(input));if(!ok)failures++;return (ok?"✔ ":"✘ ")+label});
+document.querySelector("#results").textContent=lines.join("\n")+"\n\n"+(cases.length-failures)+"/"+cases.length+" pruebas correctas";
+</script>
