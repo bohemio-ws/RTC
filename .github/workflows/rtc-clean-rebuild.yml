@@ -1,6 +1,5 @@
 name: RTC clean architecture rebuild
 on:
-  workflow_dispatch:
   push:
     paths:
       - '.github/workflows/rtc-clean-rebuild.yml'
@@ -8,88 +7,17 @@ permissions:
   contents: write
 jobs:
   rebuild:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Rebuild single-app RTC core
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('rtc-v059.html')
-          s=p.read_text(encoding='utf-8')
-          start=s.index('function rtcHoldRecognizer(')
-          end=s.index('function numberIssues(', start)
-          clean=r'''function rtcHoldRecognizer(p,status,onWords,onFinish){
- rtcPTTGuard(p);
- let recognition=null,pressed=false,finished=false,startedAt=0,currentText="",pointerId=null;
- function render(text){currentText=String(text||"").trim();onWords(currentText)}
- function finish(){
-  if(finished)return;finished=true;pressed=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");
-  status.textContent="Procesando transcripción…";
-  try{recognition?.stop()}catch(e){}
-  setTimeout(()=>{
-   const text=currentText.trim();
-   if(text){status.textContent="✓ Transcripción recibida · evaluación automática completada.";onFinish(text,Math.max(.1,(performance.now()-startedAt)/1000))}
-   else status.textContent="No se reconoció texto. Repite la transmisión; este intento no se puntúa.";
-   recognition=null;
-  },450)
- }
- function start(){
-  if(pressed)return;
-  if(!SR){status.textContent="Este navegador no ofrece reconocimiento de voz.";return}
-  pressed=true;finished=false;startedAt=performance.now();currentText="";render("");p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="● TRANSMITIENDO · mantén PTT pulsado";
-  try{
-   recognition=new SR();recognition.lang="es-ES";recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=5;
-   recognition.onresult=e=>{
-    let finalText="",interimText="";
-    for(let i=0;i<e.results.length;i++){
-     const t=rtcChooseAlternative(e.results[i]).trim();
-     if(e.results[i].isFinal)finalText+=(finalText?" ":"")+t;else interimText+=(interimText?" ":"")+t;
-    }
-    render((finalText+" "+interimText).trim());
-   };
-   recognition.onerror=e=>{if(!["aborted","no-speech"].includes(e.error))status.textContent="Reconocimiento de voz: "+e.error};
-   recognition.onend=()=>{if(pressed&&!finished){try{recognition.start()}catch(e){}}};
-   recognition.start();
-  }catch(e){pressed=false;finished=true;p.classList.remove("live");status.textContent="No se pudo iniciar el reconocimiento de voz."}
- }
- p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;pointerId=e.pointerId;try{p.setPointerCapture(pointerId)}catch{};start()});
- p.addEventListener("pointerup",e=>{e.preventDefault();if(pointerId===null||e.pointerId===pointerId){pointerId=null;finish()}});
- p.addEventListener("pointercancel",e=>{e.preventDefault();pointerId=null;finish()});
- p.addEventListener("lostpointercapture",()=>{if(pressed)finish()});
-}
-function bindDrillPTT(){
- const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");
- rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras";drillCheck(t)});
-}
-'''
-          s=s[:start]+clean+s[end:]
-          s=s.replace('VERSIÓN 0.59 · 19 OCT 2026 · EC-RTC','VERSIÓN 0.67 · 20 OCT 2026 · EC-RTC')
-          s=s.replace('Toca PTT para iniciar y vuelve a tocar para terminar.','Mantén PTT pulsado para hablar y suelta para finalizar, transcribir y evaluar.')
-          s=s.replace('La grabación se reproducirá aquí.','La transcripción aparecerá aquí mientras hablas.')
-          old='x=x.replace(/\\bQNH[\\s:=-]*(\\d{4})\\b/gi,(_,v)=>"Q N H, "+rtcSpeakDigits(v));'
-          new='x=x.replace(/\\bQNH[\\s:=-]*(\\d{4})\\b/gi,(_,v)=>"Q N H, "+rtcSpeakNumberES(Number(v)));'
-          s=s.replace(old,new)
-          helper='''\nfunction rtcSpeakNumberES(n){\n n=Math.trunc(Number(n));const u=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince","dieciséis","diecisiete","dieciocho","diecinueve","veinte","veintiuno","veintidós","veintitrés","veinticuatro","veinticinco","veintiséis","veintisiete","veintiocho","veintinueve"];\n if(n<30)return u[n]||String(n);if(n<100){const t=["","","veinte","treinta","cuarenta","cincuenta","sesenta","setenta","ochenta","noventa"],d=Math.floor(n/10),r=n%10;return t[d]+(r?" y "+u[r]:"")}\n const h={100:"cien",200:"doscientos",300:"trescientos",400:"cuatrocientos",500:"quinientos",600:"seiscientos",700:"setecientos",800:"ochocientos",900:"novecientos"};if(n<1000){const q=Math.floor(n/100)*100,r=n%100;if(q===100&&r)return "ciento "+rtcSpeakNumberES(r);return h[q]+(r?" "+rtcSpeakNumberES(r):"")}\n if(n<10000){const q=Math.floor(n/1000),r=n%1000;return (q===1?"mil":rtcSpeakNumberES(q)+" mil")+(r?" "+rtcSpeakNumberES(r):"")}return String(n)\n}\n'''
-          marker='function speechForAviation(t){'
-          s=s.replace(marker,helper+marker,1)
-          s=s.replace('function speechForAviation(t){\n let x=String(t);','function speechForAviation(t){\n let x=String(t);\n x=x.replace(/\\b(\\d{2,4})\\s+(pies|pie)\\b/gi,(_,v,u)=>rtcSpeakNumberES(Number(v))+" "+u);')
-          p.write_text(s,encoding='utf-8')
-          Path('index.html').write_text(s,encoding='utf-8')
-          PY
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnA9UGF0aCgncnRjLXYwNTkuaHRtbCcpCnM9cC5yZWFkX3RleHQoZW5jb2Rpbmc9J3V0Zi04JykKc3RhcnQ9cy5pbmRleCgnZnVuY3Rpb24gcnRjSG9sZFJlY29nbml6ZXIoJykKZW5kPXMuaW5kZXgoJ2Z1bmN0aW9uIG51bWJlcklzc3VlcygnLCBzdGFydCkKY2xlYW49cicnJ2Z1bmN0aW9uIHJ0Y0hvbGRSZWNvZ25pemVyKHAsc3RhdHVzLG9uV29yZHMsb25GaW5pc2gpewogcnRjUFRUR3VhcmQocCk7CiBsZXQgcmVjb2duaXRpb249bnVsbCxwcmVzc2VkPWZhbHNlLGZpbmlzaGVkPWZhbHNlLHN0YXJ0ZWRBdD0wLGN1cnJlbnRUZXh0PSIiLHBvaW50ZXJJZD1udWxsOwogZnVuY3Rpb24gcmVuZGVyKHRleHQpe2N1cnJlbnRUZXh0PVN0cmluZyh0ZXh0fHwiIikudHJpbSgpO29uV29yZHMoY3VycmVudFRleHQpfQogZnVuY3Rpb24gZmluaXNoKCl7CiAgaWYoZmluaXNoZWQpcmV0dXJuO2ZpbmlzaGVkPXRydWU7cHJlc3NlZD1mYWxzZTtwLmNsYXNzTGlzdC5yZW1vdmUoImxpdmUiKTtwLnNldEF0dHJpYnV0ZSgiYXJpYS1wcmVzc2VkIiwiZmFsc2UiKTsKICBzdGF0dXMudGV4dENvbnRlbnQ9IlByb2Nlc2FuZG8gdHJhbnNjcmlwY2nDs27igKYiOwogIHRyeXtyZWNvZ25pdGlvbj8uc3RvcCgpfWNhdGNoKGUpe30KICBzZXRUaW1lb3V0KCgpPT57CiAgIGNvbnN0IHRleHQ9Y3VycmVudFRleHQudHJpbSgpOwogICBpZih0ZXh0KXtzdGF0dXMudGV4dENvbnRlbnQ9IuKckyBUcmFuc2NyaXBjacOzbiByZWNpYmlkYSDCtyBldmFsdWFjacOzbiBhdXRvbcOhdGljYSBjb21wbGV0YWRhLiI7b25GaW5pc2godGV4dCxNYXRoLm1heCguMSwocGVyZm9ybWFuY2Uubm93KCktc3RhcnRlZEF0KS8xMDAwKSl9CiAgIGVsc2Ugc3RhdHVzLnRleHRDb250ZW50PSJObyBzZSByZWNvbm9jacOzIHRleHRvLiBSZXBpdGUgbGEgdHJhbnNtaXNpw7NuOyBlc3RlIGludGVudG8gbm8gc2UgcHVudMO6YS4iOwogICByZWNvZ25pdGlvbj1udWxsOwogIH0sNDUwKQogfQogZnVuY3Rpb24gc3RhcnQoKXsKICBpZihwcmVzc2VkKXJldHVybjsKICBpZighU1Ipe3N0YXR1cy50ZXh0Q29udGVudD0iRXN0ZSBuYXZlZ2Fkb3Igbm8gb2ZyZWNlIHJlY29ub2NpbWllbnRvIGRlIHZvei4iO3JldHVybn0KICBwcmVzc2VkPXRydWU7ZmluaXNoZWQ9ZmFsc2U7c3RhcnRlZEF0PXBlcmZvcm1hbmNlLm5vdygpO2N1cnJlbnRUZXh0PSIiO3JlbmRlcigiIik7cC5jbGFzc0xpc3QuYWRkKCJsaXZlIik7cC5zZXRBdHRyaWJ1dGUoImFyaWEtcHJlc3NlZCIsInRydWUiKTtzdGF0dXMudGV4dENvbnRlbnQ9IuKXjyBUUkFOU01JVElFTkRPIMK3IG1hbnTDqW4gUFRUIHB1bHNhZG8iOwogIHRyeXsKICAgcmVjb2duaXRpb249bmV3IFNSKCk7cmVjb2duaXRpb24ubGFuZz0iZXMtRVMiO3JlY29nbml0aW9uLmNvbnRpbnVvdXM9dHJ1ZTtyZWNvZ25pdGlvbi5pbnRlcmltUmVzdWx0cz10cnVlO3JlY29nbml0aW9uLm1heEFsdGVybmF0aXZlcz01OwogICByZWNvZ25pdGlvbi5vbnJlc3VsdD1lPT57CiAgICBsZXQgZmluYWxUZXh0PSIiLGludGVyaW1UZXh0PSIiOwogICAgZm9yKGxldCBpPTA7aTxlLnJlc3VsdHMubGVuZ3RoO2krKyl7CiAgICAgY29uc3QgdD1ydGNDaG9vc2VBbHRlcm5hdGl2ZShlLnJlc3VsdHNbaV0pLnRyaW0oKTsKICAgICBpZihlLnJlc3VsdHNbaV0uaXNGaW5hbClmaW5hbFRleHQrPShmaW5hbFRleHQ/IiAiOiIiKSt0O2Vsc2UgaW50ZXJpbVRleHQrPShpbnRlcmltVGV4dD8iICI6IiIpK3Q7CiAgICB9CiAgICByZW5kZXIoKGZpbmFsVGV4dCsiICIraW50ZXJpbVRleHQpLnRyaW0oKSk7CiAgIH07CiAgIHJlY29nbml0aW9uLm9uZXJyb3I9ZT0+e2lmKCFbImFib3J0ZWQiLCJuby1zcGVlY2giXS5pbmNsdWRlcyhlLmVycm9yKSlzdGF0dXMudGV4dENvbnRlbnQ9IlJlY29ub2NpbWllbnRvIGRlIHZvejogIitlLmVycm9yfTsKICAgcmVjb2duaXRpb24ub25lbmQ9KCk9PntpZihwcmVzc2VkJiYhZmluaXNoZWQpe3RyeXtyZWNvZ25pdGlvbi5zdGFydCgpfWNhdGNoKGUpe319fTsKICAgcmVjb2duaXRpb24uc3RhcnQoKTsKICB9Y2F0Y2goZSl7cHJlc3NlZD1mYWxzZTtmaW5pc2hlZD10cnVlO3AuY2xhc3NMaXN0LnJlbW92ZSgibGl2ZSIpO3N0YXR1cy50ZXh0Q29udGVudD0iTm8gc2UgcHVkbyBpbmljaWFyIGVsIHJlY29ub2NpbWllbnRvIGRlIHZvei4ifQogfQogcC5hZGRFdmVudExpc3RlbmVyKCJwb2ludGVyZG93biIsZT0+e2UucHJldmVudERlZmF1bHQoKTtpZihlLnBvaW50ZXJUeXBlPT09Im1vdXNlIiYmZS5idXR0b24hPT0wKXJldHVybjtwb2ludGVySWQ9ZS5wb2ludGVySWQ7dHJ5e3Auc2V0UG9pbnRlckNhcHR1cmUocG9pbnRlcklkKX1jYXRjaHt9O3N0YXJ0KCl9KTsKIHAuYWRkRXZlbnRMaXN0ZW5lcigicG9pbnRlcnVwIixlPT57ZS5wcmV2ZW50RGVmYXVsdCgpO2lmKHBvaW50ZXJJZD09PW51bGx8fGUucG9pbnRlcklkPT09cG9pbnRlcklkKXtwb2ludGVySWQ9bnVsbDtmaW5pc2goKX19KTsKIHAuYWRkRXZlbnRMaXN0ZW5lcigicG9pbnRlcmNhbmNlbCIsZT0+e2UucHJldmVudERlZmF1bHQoKTtwb2ludGVySWQ9bnVsbDtmaW5pc2goKX0pOwogcC5hZGRFdmVudExpc3RlbmVyKCJsb3N0cG9pbnRlcmNhcHR1cmUiLCgpPT57aWYocHJlc3NlZClmaW5pc2goKX0pOwp9CmZ1bmN0aW9uIGJpbmREcmlsbFBUVCgpewogY29uc3QgcD0kKCIjcHR0Iiksc3RhdHVzPSQoIiNzdGF0dXMiKSxvdXQ9JCgiI291dCIpLGZpZWxkPSQoIiNkcmlsbFRleHQiKTsKIHJ0Y0hvbGRSZWNvZ25pemVyKHAsc3RhdHVzLHQ9PntvdXQudGV4dENvbnRlbnQ9cnRjQXZpYXRpb25UcmFuc2NyaXB0KHQpfHwiRXNjdWNoYW5kb+KApiI7ZmllbGQudmFsdWU9dH0sKHQsc2Vjb25kcyk9PntydGNMYXN0VGltaW5nPXtzZWNvbmRzLGF0OkRhdGUubm93KCl9O2ZpZWxkLnZhbHVlPXQ7b3V0LnRleHRDb250ZW50PXJ0Y0F2aWF0aW9uVHJhbnNjcmlwdCh0KXx8Ik5vIHNlIHJlY29ub2NpZXJvbiBwYWxhYnJhcyI7ZHJpbGxDaGVjayh0KX0pOwp9CicnJwpzPXNbOnN0YXJ0XStjbGVhbitzW2VuZDpdCnM9cy5yZXBsYWNlKCdWRVJTScOTTiAwLjU5IMK3IDE5IE9DVCAyMDI2IMK3IEVDLVJUQycsJ1ZFUlNJw5NOIDAuNjcgwrcgMjAgT0NUIDIwMjYgwrcgRUMtUlRDJykKcz1zLnJlcGxhY2UoJ1RvY2EgUFRUIHBhcmEgaW5pY2lhciB5IHZ1ZWx2ZSBhIHRvY2FyIHBhcmEgdGVybWluYXIuJywnTWFudMOpbiBQVFQgcHVsc2FkbyBwYXJhIGhhYmxhciB5IHN1ZWx0YSBwYXJhIGZpbmFsaXphciwgdHJhbnNjcmliaXIgeSBldmFsdWFyLicpCnM9cy5yZXBsYWNlKCdMYSBncmFiYWNpw7NuIHNlIHJlcHJvZHVjaXLDoSBhcXXDrS4nLCdMYSB0cmFuc2NyaXBjacOzbiBhcGFyZWNlcsOhIGFxdcOtIG1pZW50cmFzIGhhYmxhcy4nKQojIFFOSCBuYXR1cmFsOyBhbHRpdHVkZSBuYXR1cmFsOyBvdGhlciA0LWRpZ2l0IG9wZXJhdGlvbmFsIHZhbHVlcyByZW1haW4gZGlnaXQtYnktZGlnaXQuCm9sZD0neD14LnJlcGxhY2UoL1xcYlFOSFtcXHM6PS1dKihcXGR7NH0pXFxiL2dpLChfLHYpPT4iUSBOIEgsICIrcnRjU3BlYWtEaWdpdHModikpOycKbmV3PSd4PXgucmVwbGFjZSgvXFxiUU5IW1xcczo9LV0qKFxcZHs0fSlcXGIvZ2ksKF8sdik9PiJRIE4gSCwgIitydGNTcGVha051bWJlckVTKE51bWJlcih2KSkpOycKcz1zLnJlcGxhY2Uob2xkLG5ldykKaGVscGVyPScnJ1xuZnVuY3Rpb24gcnRjU3BlYWtOdW1iZXJFUyhuKXtcbiBuPU1hdGgudHJ1bmMoTnVtYmVyKG4pKTtjb25zdCB1PVsiY2VybyIsInVubyIsImRvcyIsInRyZXMiLCJjdWF0cm8iLCJjaW5jbyIsInNlaXMiLCJzaWV0ZSIsIm9jaG8iLCJudWV2ZSIsImRpZXoiLCJvbmNlIiwiZG9jZSIsInRyZWNlIiwiY2F0b3JjZSIsInF1aW5jZSIsImRpZWNpc8OpaXMiLCJkaWVjaXNpZXRlIiwiZGllY2lvY2hvIiwiZGllY2ludWV2ZSIsInZlaW50ZSIsInZlaW50aXVubyIsInZlaW50aWTDs3MiLCJ2ZWludGl0csOpcyIsInZlaW50aWN1YXRybyIsInZlaW50aWNpbmNvIiwidmVpbnRpc8OpaXMiLCJ2ZWludGlzaWV0ZSIsInZlaW50aW9jaG8iLCJ2ZWludGludWV2ZSJdO1xuIGlmKG48MzApcmV0dXJuIHVbbl18fFN0cmluZyhuKTtpZihuPDEwMCl7Y29uc3QgdD1bIiIsIiIsInZlaW50ZSIsInRyZWludGEiLCJjdWFyZW50YSIsImNpbmN1ZW50YSIsInNlc2VudGEiLCJzZXRlbnRhIiwib2NoZW50YSIsIm5vdmVudGEiXSxkPU1hdGguZmxvb3Iobi8xMCkscj1uJTEwO3JldHVybiB0W2RdKyhyPyIgeSAiK3Vbcl06IiIpfVxuIGNvbnN0IGg9ezEwMDoiY2llbiIsMjAwOiJkb3NjaWVudG9zIiwzMDA6InRyZXNjaWVudG9zIiw0MDA6ImN1YXRyb2NpZW50b3MiLDUwMDoicXVpbmllbnRvcyIsNjAwOiJzZWlzY2llbnRvcyIsNzAwOiJzZXRlY2llbnRvcyIsODAwOiJvY2hvY2llbnRvcyIsOTAwOiJub3ZlY2llbnRvcyJ9O2lmKG48MTAwMCl7Y29uc3QgcT1NYXRoLmZsb29yKG4vMTAwKSoxMDAscj1uJTEwMDtpZihxPT09MTAwJiZyKXJldHVybiAiY2llbnRvICIrcnRjU3BlYWtOdW1iZXJFUyhyKTtyZXR1cm4gaFtxXSsocj8iICIrcnRjU3BlYWtOdW1iZXJFUyhyKToiIil9XG4gaWYobjwxMDAwMCl7Y29uc3QgcT1NYXRoLmZsb29yKG4vMTAwMCkscj1uJTEwMDA7cmV0dXJuIChxPT09MT8ibWlsIjpydGNTcGVha051bWJlckVTKHEpKyIgbWlsIikrKHI/IiAiK3J0Y1NwZWFrTnVtYmVyRVMocik6IiIpfXJldHVybiBTdHJpbmcobilcbn1cbicnJwptYXJrZXI9J2Z1bmN0aW9uIHNwZWVjaEZvckF2aWF0aW9uKHQpeycKcz1zLnJlcGxhY2UobWFya2VyLGhlbHBlcittYXJrZXIsMSkKIyBOYXR1cmFsIGFsdGl0dWRlIHZhbHVlcyBpbW1lZGlhdGVseSBiZWZvcmUgcGllcy4Kcz1zLnJlcGxhY2UoJ2Z1bmN0aW9uIHNwZWVjaEZvckF2aWF0aW9uKHQpe1xuIGxldCB4PVN0cmluZyh0KTsnLCdmdW5jdGlvbiBzcGVlY2hGb3JBdmlhdGlvbih0KXtcbiBsZXQgeD1TdHJpbmcodCk7XG4geD14LnJlcGxhY2UoL1xcYihcXGR7Miw0fSlcXHMrKHBpZXN8cGllKVxcYi9naSwoXyx2LHUpPT5ydGNTcGVha051bWJlckVTKE51bWJlcih2KSkrIiAiK3UpOycpCnAud3JpdGVfdGV4dChzLGVuY29kaW5nPSd1dGYtOCcpCiMgT2ZmaWNpYWwgZW50cnkgaXMgdGhlIGFwcGxpY2F0aW9uIGl0c2VsZjogbm8gaWZyYW1lL3dyYXBwZXIvYnJpZGdlLgpQYXRoKCdpbmRleC5odG1sJykud3JpdGVfdGV4dChzLGVuY29kaW5nPSd1dGYtOCcpCg==' | base64 -d > /tmp/rebuild.py
+          python3 /tmp/rebuild.py
       - name: Verify architecture
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          s=Path('index.html').read_text()
-          assert '<iframe' not in s
-          assert 'MediaRecorder' not in s[s.index('function rtcHoldRecognizer('):s.index('function numberIssues(')]
-          assert 'rtcPTTToggle' not in s[s.index('function rtcHoldRecognizer('):s.index('function numberIssues(')]
-          assert 'drillCheck(t)' in s[s.index('function bindDrillPTT('):s.index('function numberIssues(')]
-          assert 'pointerdown' in s and 'pointerup' in s
-          print('RTC clean architecture checks passed')
-          PY
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnM9UGF0aCgnaW5kZXguaHRtbCcpLnJlYWRfdGV4dCgpCmFzc2VydCAnPGlmcmFtZScgbm90IGluIHMKYXNzZXJ0ICdNZWRpYVJlY29yZGVyJyBub3QgaW4gc1tzLmluZGV4KCdmdW5jdGlvbiBydGNIb2xkUmVjb2duaXplcignKTpzLmluZGV4KCdmdW5jdGlvbiBudW1iZXJJc3N1ZXMoJyldCmFzc2VydCAncnRjUFRUVG9nZ2xlJyBub3QgaW4gc1tzLmluZGV4KCdmdW5jdGlvbiBydGNIb2xkUmVjb2duaXplcignKTpzLmluZGV4KCdmdW5jdGlvbiBudW1iZXJJc3N1ZXMoJyldCmFzc2VydCAnZHJpbGxDaGVjayh0KScgaW4gc1tzLmluZGV4KCdmdW5jdGlvbiBiaW5kRHJpbGxQVFQoJyk6cy5pbmRleCgnZnVuY3Rpb24gbnVtYmVySXNzdWVzKCcpXQphc3NlcnQgJ3BvaW50ZXJkb3duJyBpbiBzIGFuZCAncG9pbnRlcnVwJyBpbiBzCnByaW50KCdSVEMgY2xlYW4gYXJjaGl0ZWN0dXJlIGNoZWNrcyBwYXNzZWQnKQo=' | base64 -d > /tmp/verify.py
+          python3 /tmp/verify.py
       - name: Commit rebuilt app
         run: |
           git config user.name "github-actions[bot]"
