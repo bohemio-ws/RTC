@@ -1,12 +1,12 @@
 name: RTC core integration
 on:
   push:
-    branches: [main]
+    paths:
+      - '.github/workflows/rtc-core-integration.yml'
 permissions:
   contents: write
 jobs:
   integrate:
-    if: ${{ !contains(github.event.head_commit.message, '[rtc-core]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,11 +14,9 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p=Path('rtc-v059.html')
           s=p.read_text()
           s=s.replace('VERSIÓN 0.59 · 19 OCT 2026 · EC-RTC','VERSIÓN 0.61 · 20 OCT 2026 · EC-RTC')
-          s=s.replace('EJERCICIO '+"' +(i+1)+'" if False else '___NEVER___','___NEVER___')
           s=s.replace('· v0.59</span>','· v0.61</span>')
           s=s.replace('const CALLSIGN_PHONETIC="Eco Charlie Romeo Tango Charlie";','const CALLSIGN_PHONETIC="Echo Charlie Romeo Tango Charlie";')
           s=s.replace('"Eco, Charlie, Romeo, Tango, Charlie"','"Echo, Charlie, Romeo, Tango, Charlie"')
@@ -62,12 +60,8 @@ jobs:
     const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});
     if(blob.size){url=URL.createObjectURL(blob);result.textContent="";const audio=document.createElement("audio");audio.controls=true;audio.src=url;audio.style.width="100%";result.appendChild(audio)}
     const seconds=(performance.now()-startedAt)/1000;
-    if(transcript.trim()){
-      status.textContent="✓ Transmisión reconocida · evaluación automática realizada.";
-      setTimeout(()=>onFinish(transcript,seconds),180);
-    }else{
-      status.textContent="Audio guardado. No hubo texto reconocible; repite la transmisión. Una transcripción fallida no se califica como error de fraseología.";
-    }
+    if(transcript.trim()){status.textContent="✓ Transmisión reconocida · evaluación automática realizada.";setTimeout(()=>onFinish(transcript,seconds),180)}
+    else status.textContent="Audio guardado. No hubo texto reconocible; repite la transmisión. Una transcripción fallida no se califica como error de fraseología.";
    };
    recorder.start();startRecognition();status.textContent="● TRANSMITIENDO · habla mientras mantienes PTT";
   }catch(e){recording=false;stopping=false;p.classList.remove("live");cleanup();status.textContent="Micrófono no disponible: "+e.message}
@@ -84,7 +78,6 @@ function bindDrillPTT(){
 '''
           s=s[:start]+replacement+s[end:]
           p.write_text(s)
-
           Path('index.html').write_text('''<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#293e49"><title>RTC Academy · Bohemio 4 Infinity</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><meta http-equiv="refresh" content="0;url=rtc-v059.html?v=061"><script>location.replace('rtc-v059.html?v=061'+location.hash);</script></head><body><p>Abriendo RTC Academy…</p></body></html>''')
           PY
       - name: Commit integrated core
