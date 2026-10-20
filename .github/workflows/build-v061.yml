@@ -1,112 +1,69 @@
-name: Build RTC v061 single core
+name: RTC v061 builder
 on:
   push:
     branches: [rtc-v061-work]
+    paths: [.github/workflows/build-v061.yml]
 permissions:
   contents: write
 jobs:
   build:
-    if: ${{ !contains(github.event.head_commit.message, '[v061-built]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: rtc-v061-work
-      - name: Build single core
+      - name: Build integrated RTC
+        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           s=Path('rtc-v059.html').read_text(encoding='utf-8')
           s=s.replace('VERSIÓN 0.59 · 19 OCT 2026 · EC-RTC','VERSIÓN 0.61 · 20 OCT 2026 · EC-RTC')
+          s=s.replace('Simulador integrado v0.20','Simulador integrado v0.61')
+          s=s.replace('content="#071426"','content="#293e49"',1)
+          s=s.replace('rtc-academy-theme.css?v=1','rtc-academy-theme.css?v=2')
           s=s.replace("+' · v0.59</span>","+' · v0.61</span>")
           start=s.index('function rtcHoldRecognizer(')
-          end=s.index('function numberIssues(', start)
+          end=s.index('function numberIssues(',start)
           replacement=r'''function rtcHoldRecognizer(p,status,onWords,onFinish){
  rtcPTTGuard(p);
  let recording=false,recorder=null,stream=null,chunks=[],url=null,startedAt=0,stopping=false,recognizer=null,transcript="",recognitionEnded=true;
  p.insertAdjacentHTML("afterend",'<div id="rtcAudioControls"><label><input id="rtcPTTToggle" type="checkbox"> Modo alterno: tocar para iniciar y tocar para finalizar</label><div id="rtcAudioResult"></div></div>');
  const result=p.parentElement.querySelector("#rtcAudioResult");
  function cleanup(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
- function startRecognition(){
-  transcript="";recognitionEnded=!SR;
-  if(!SR)return;
-  try{
-   recognizer=new SR();recognizer.lang="es-ES";recognizer.continuous=true;recognizer.interimResults=true;recognizer.maxAlternatives=5;
-   recognizer.onresult=e=>{let final="",interim="";for(let i=0;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t+" ";else interim+=t+" "}transcript=(final+interim).trim();onWords(transcript)};
-   recognizer.onend=()=>{recognitionEnded=true};
-   recognizer.onerror=e=>{if(e.error!=="aborted"&&e.error!=="no-speech")status.textContent="Grabación conservada · reconocimiento: "+e.error};
-   recognizer.start();
-  }catch(e){recognizer=null;recognitionEnded=true}
- }
- function stopRecognition(){try{if(recognizer)recognizer.stop()}catch{} }
- function evaluate(seconds){
-  const finish=()=>{if(transcript.trim()){status.textContent="✓ Transcripción automática recibida y evaluación realizada.";onFinish(transcript,seconds)}else{status.textContent=SR?"Audio guardado. No se reconoció texto; repite o usa el campo de texto. No se registra un fallo por un error del reconocedor.":"Audio guardado. Este navegador no ofrece reconocimiento de voz; puedes escribir la transmisión para evaluarla."}};
-  let tries=0;const wait=()=>{if(recognitionEnded||tries++>8)finish();else setTimeout(wait,100)};wait();
- }
- function stop(){
-  if(!recording||stopping)return;stopping=true;recording=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");status.textContent="Analizando transmisión…";stopRecognition();
-  try{if(recorder&&recorder.state!=="inactive")recorder.stop();else{cleanup();stopping=false}}catch(e){cleanup();stopping=false;status.textContent="No se pudo finalizar: "+e.message}
- }
- async function start(){
-  if(recording||stopping)return;
-  if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){status.textContent="Este navegador no permite grabación web. Usa el campo de texto.";return}
-  recording=true;chunks=[];transcript="";onWords("");result.textContent="";p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="Preparando micrófono…";
-  try{
-   const obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-   if(!recording){obtained.getTracks().forEach(t=>t.stop());return}
-   stream=obtained;const opts=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?{mimeType:"audio/webm;codecs=opus"}:{};
-   recorder=new MediaRecorder(stream,opts);startedAt=performance.now();
-   recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
-   recorder.onerror=()=>{status.textContent="Error de grabación. Comprueba el permiso del micrófono."};
-   recorder.onstop=()=>{
-    cleanup();stopping=false;const seconds=(performance.now()-startedAt)/1000;
-    if(url)URL.revokeObjectURL(url);
-    const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});
-    result.textContent="";
-    if(blob.size){url=URL.createObjectURL(blob);const audio=document.createElement("audio");audio.controls=true;audio.src=url;audio.style.width="100%";result.appendChild(audio)}
-    evaluate(seconds);
-   };
-   recorder.start();startRecognition();status.textContent="● TRANSMITIENDO · habla mientras mantienes PTT";
-  }catch(e){recording=false;stopping=false;p.classList.remove("live");cleanup();status.textContent="Micrófono no disponible: "+e.message}
- }
- let pointer=null;
- p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;if($("#rtcPTTToggle")?.checked){if(recording)stop();else start()}else{pointer=e.pointerId;try{p.setPointerCapture(pointer)}catch{};start()}});
- p.addEventListener("pointerup",e=>{e.preventDefault();if($("#rtcPTTToggle")?.checked)return;if(pointer===e.pointerId){pointer=null;stop()}});
- p.addEventListener("pointercancel",e=>{if(!$("#rtcPTTToggle")?.checked)stop();e.preventDefault()});
+ function startRecognition(){transcript="";recognitionEnded=!SR;if(!SR)return;try{recognizer=new SR();recognizer.lang="es-ES";recognizer.continuous=true;recognizer.interimResults=true;recognizer.maxAlternatives=5;recognizer.onresult=e=>{let final="",interim="";for(let i=0;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)final+=t+" ";else interim+=t+" "}transcript=(final+interim).trim();onWords(transcript)};recognizer.onend=()=>{recognitionEnded=true};recognizer.onerror=e=>{if(!["aborted","no-speech"].includes(e.error))status.textContent="Audio conservado · reconocimiento: "+e.error};recognizer.start()}catch(e){recognizer=null;recognitionEnded=true}}
+ function stopRecognition(){try{if(recognizer)recognizer.stop()}catch{}}
+ function finish(seconds){let tries=0;const done=()=>{if(transcript.trim()){onFinish(transcript,seconds);status.textContent="✓ Transcripción automática recibida y evaluación realizada."}else status.textContent=SR?"Audio guardado. No se reconoció texto; repite o usa la corrección manual. No se registra un fallo por un error del reconocedor.":"Audio guardado. Este navegador no ofrece reconocimiento de voz; usa la corrección manual."};const wait=()=>{if(recognitionEnded||tries++>10)done();else setTimeout(wait,100)};wait()}
+ function stop(){if(!recording||stopping)return;stopping=true;recording=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");status.textContent="Analizando transmisión…";stopRecognition();try{if(recorder&&recorder.state!=="inactive")recorder.stop();else{cleanup();stopping=false}}catch(e){cleanup();stopping=false;status.textContent="No se pudo finalizar: "+e.message}}
+ async function start(){if(recording||stopping)return;if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined"){status.textContent="Este navegador no permite grabación web. Usa la corrección manual.";return}recording=true;chunks=[];transcript="";onWords("");result.textContent="";p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="Preparando micrófono…";try{const obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});if(!recording){obtained.getTracks().forEach(t=>t.stop());return}stream=obtained;const opts=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?{mimeType:"audio/webm;codecs=opus"}:{};recorder=new MediaRecorder(stream,opts);startedAt=performance.now();recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};recorder.onerror=()=>{status.textContent="Error de grabación. Comprueba el permiso del micrófono."};recorder.onstop=()=>{cleanup();stopping=false;const seconds=(performance.now()-startedAt)/1000;if(url)URL.revokeObjectURL(url);const blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});result.textContent="";if(blob.size){url=URL.createObjectURL(blob);const audio=document.createElement("audio");audio.controls=true;audio.src=url;audio.style.width="100%";result.appendChild(audio)}finish(seconds)};recorder.start();startRecognition();status.textContent="● TRANSMITIENDO · suelta PTT al terminar"}catch(e){recording=false;stopping=false;p.classList.remove("live");cleanup();status.textContent="Micrófono no disponible: "+e.message}}
+ let pointer=null;p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;if($("#rtcPTTToggle")?.checked){if(recording)stop();else start()}else{pointer=e.pointerId;try{p.setPointerCapture(pointer)}catch{};start()}});p.addEventListener("pointerup",e=>{e.preventDefault();if($("#rtcPTTToggle")?.checked)return;if(pointer===e.pointerId){pointer=null;stop()}});p.addEventListener("pointercancel",e=>{if(!$("#rtcPTTToggle")?.checked)stop();e.preventDefault()});
 }
-function bindDrillPTT(){
- const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");
- rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras";drillCheck(t)});
-}
+function bindDrillPTT(){const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras";drillCheck(t)})}
 '''
           s=s[:start]+replacement+s[end:]
-          # ASR normalization for common QNH segmentation, without changing what the student actually said.
-          s=s.replace('function numberIssues(i,n){','function numberIssues(i,n){\n n=String(n||"").replace(/\\bq\\s*n\\s*h\\b/gi,"qnh");')
           Path('rtc.html').write_text(s,encoding='utf-8')
-          Path('index.html').write_text('''<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><meta name="theme-color" content="#293e49"><title>RTC Academy · Bohemio 4 Infinity</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><meta http-equiv="refresh" content="0;url=rtc.html?v=061"><script>location.replace('rtc.html?v=061'+location.hash);</script></head><body><p>Abriendo RTC Academy…</p></body></html>''',encoding='utf-8')
-          # Structural release gates
-          assert '<iframe' not in s.lower(), 'rtc.html must not contain iframes'
-          assert 'MutationObserver' not in s, 'wrapper patch leaked into core'
-          assert 'function rtcHoldRecognizer' in s and 'new SR()' in s
+          index='''<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><meta name="theme-color" content="#293e49"><title>RTC Academy · Bohemio 4 Infinity</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><meta http-equiv="refresh" content="0;url=rtc.html?v=061"><script>location.replace('rtc.html?v=061'+location.hash);</script></head><body><p>Abriendo RTC Academy…</p></body></html>'''
+          Path('index.html').write_text(index,encoding='utf-8')
+          assert '<iframe' not in s.lower()
+          assert 'MutationObserver' not in s
+          assert 'new SR()' in s
           assert 'drillCheck(t)' in s
-          assert 'rtc-academy-theme.css' in s
           assert 'VERSIÓN 0.61' in s
+          assert 'rtc-academy-theme.css?v=2' in s
           PY
-      - name: Validate JavaScript syntax
+      - name: Check JavaScript syntax
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('rtc.html').read_text(encoding='utf-8')
-          scripts=re.findall(r'<script>(.*?)</script>',s,re.S)
-          Path('/tmp/rtc.js').write_text('\n'.join(scripts),encoding='utf-8')
+          Path('/tmp/rtc.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)),encoding='utf-8')
           PY
           node --check /tmp/rtc.js
-      - name: Commit release candidate
+      - name: Commit integrated release
         run: |
           git config user.name "Bohemio RTC build"
           git config user.email "actions@users.noreply.github.com"
           git add rtc.html index.html
-          git diff --cached --quiet && exit 0
-          git commit -m "[v061-built] RTC v0.61 single core"
+          git commit -m "RTC v0.61 integrated single-core release"
           git push origin HEAD:rtc-v061-work
