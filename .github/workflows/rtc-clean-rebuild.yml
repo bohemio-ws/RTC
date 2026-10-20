@@ -1,0 +1,99 @@
+name: RTC clean architecture rebuild
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/rtc-clean-rebuild.yml'
+permissions:
+  contents: write
+jobs:
+  rebuild:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild single-app RTC core
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('rtc-v059.html')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('function rtcHoldRecognizer(')
+          end=s.index('function numberIssues(', start)
+          clean=r'''function rtcHoldRecognizer(p,status,onWords,onFinish){
+ rtcPTTGuard(p);
+ let recognition=null,pressed=false,finished=false,startedAt=0,currentText="",pointerId=null;
+ function render(text){currentText=String(text||"").trim();onWords(currentText)}
+ function finish(){
+  if(finished)return;finished=true;pressed=false;p.classList.remove("live");p.setAttribute("aria-pressed","false");
+  status.textContent="Procesando transcripción…";
+  try{recognition?.stop()}catch(e){}
+  setTimeout(()=>{
+   const text=currentText.trim();
+   if(text){status.textContent="✓ Transcripción recibida · evaluación automática completada.";onFinish(text,Math.max(.1,(performance.now()-startedAt)/1000))}
+   else status.textContent="No se reconoció texto. Repite la transmisión; este intento no se puntúa.";
+   recognition=null;
+  },450)
+ }
+ function start(){
+  if(pressed)return;
+  if(!SR){status.textContent="Este navegador no ofrece reconocimiento de voz.";return}
+  pressed=true;finished=false;startedAt=performance.now();currentText="";render("");p.classList.add("live");p.setAttribute("aria-pressed","true");status.textContent="● TRANSMITIENDO · mantén PTT pulsado";
+  try{
+   recognition=new SR();recognition.lang="es-ES";recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=5;
+   recognition.onresult=e=>{
+    let finalText="",interimText="";
+    for(let i=0;i<e.results.length;i++){
+     const t=rtcChooseAlternative(e.results[i]).trim();
+     if(e.results[i].isFinal)finalText+=(finalText?" ":"")+t;else interimText+=(interimText?" ":"")+t;
+    }
+    render((finalText+" "+interimText).trim());
+   };
+   recognition.onerror=e=>{if(!["aborted","no-speech"].includes(e.error))status.textContent="Reconocimiento de voz: "+e.error};
+   recognition.onend=()=>{if(pressed&&!finished){try{recognition.start()}catch(e){}}};
+   recognition.start();
+  }catch(e){pressed=false;finished=true;p.classList.remove("live");status.textContent="No se pudo iniciar el reconocimiento de voz."}
+ }
+ p.addEventListener("pointerdown",e=>{e.preventDefault();if(e.pointerType==="mouse"&&e.button!==0)return;pointerId=e.pointerId;try{p.setPointerCapture(pointerId)}catch{};start()});
+ p.addEventListener("pointerup",e=>{e.preventDefault();if(pointerId===null||e.pointerId===pointerId){pointerId=null;finish()}});
+ p.addEventListener("pointercancel",e=>{e.preventDefault();pointerId=null;finish()});
+ p.addEventListener("lostpointercapture",()=>{if(pressed)finish()});
+}
+function bindDrillPTT(){
+ const p=$("#ptt"),status=$("#status"),out=$("#out"),field=$("#drillText");
+ rtcHoldRecognizer(p,status,t=>{out.textContent=rtcAviationTranscript(t)||"Escuchando…";field.value=t},(t,seconds)=>{rtcLastTiming={seconds,at:Date.now()};field.value=t;out.textContent=rtcAviationTranscript(t)||"No se reconocieron palabras";drillCheck(t)});
+}
+'''
+          s=s[:start]+clean+s[end:]
+          s=s.replace('VERSIÓN 0.59 · 19 OCT 2026 · EC-RTC','VERSIÓN 0.67 · 20 OCT 2026 · EC-RTC')
+          s=s.replace('Toca PTT para iniciar y vuelve a tocar para terminar.','Mantén PTT pulsado para hablar y suelta para finalizar, transcribir y evaluar.')
+          s=s.replace('La grabación se reproducirá aquí.','La transcripción aparecerá aquí mientras hablas.')
+          old='x=x.replace(/\\bQNH[\\s:=-]*(\\d{4})\\b/gi,(_,v)=>"Q N H, "+rtcSpeakDigits(v));'
+          new='x=x.replace(/\\bQNH[\\s:=-]*(\\d{4})\\b/gi,(_,v)=>"Q N H, "+rtcSpeakNumberES(Number(v)));'
+          s=s.replace(old,new)
+          helper='''\nfunction rtcSpeakNumberES(n){\n n=Math.trunc(Number(n));const u=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince","dieciséis","diecisiete","dieciocho","diecinueve","veinte","veintiuno","veintidós","veintitrés","veinticuatro","veinticinco","veintiséis","veintisiete","veintiocho","veintinueve"];\n if(n<30)return u[n]||String(n);if(n<100){const t=["","","veinte","treinta","cuarenta","cincuenta","sesenta","setenta","ochenta","noventa"],d=Math.floor(n/10),r=n%10;return t[d]+(r?" y "+u[r]:"")}\n const h={100:"cien",200:"doscientos",300:"trescientos",400:"cuatrocientos",500:"quinientos",600:"seiscientos",700:"setecientos",800:"ochocientos",900:"novecientos"};if(n<1000){const q=Math.floor(n/100)*100,r=n%100;if(q===100&&r)return "ciento "+rtcSpeakNumberES(r);return h[q]+(r?" "+rtcSpeakNumberES(r):"")}\n if(n<10000){const q=Math.floor(n/1000),r=n%1000;return (q===1?"mil":rtcSpeakNumberES(q)+" mil")+(r?" "+rtcSpeakNumberES(r):"")}return String(n)\n}\n'''
+          marker='function speechForAviation(t){'
+          s=s.replace(marker,helper+marker,1)
+          s=s.replace('function speechForAviation(t){\n let x=String(t);','function speechForAviation(t){\n let x=String(t);\n x=x.replace(/\\b(\\d{2,4})\\s+(pies|pie)\\b/gi,(_,v,u)=>rtcSpeakNumberES(Number(v))+" "+u);')
+          p.write_text(s,encoding='utf-8')
+          Path('index.html').write_text(s,encoding='utf-8')
+          PY
+      - name: Verify architecture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text()
+          assert '<iframe' not in s
+          assert 'MediaRecorder' not in s[s.index('function rtcHoldRecognizer('):s.index('function numberIssues(')]
+          assert 'rtcPTTToggle' not in s[s.index('function rtcHoldRecognizer('):s.index('function numberIssues(')]
+          assert 'drillCheck(t)' in s[s.index('function bindDrillPTT('):s.index('function numberIssues(')]
+          assert 'pointerdown' in s and 'pointerup' in s
+          print('RTC clean architecture checks passed')
+          PY
+      - name: Commit rebuilt app
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rtc-v059.html index.html
+          git commit -m "Rebuild RTC as single-app hold-to-talk architecture" || exit 0
+          git push
