@@ -1,2 +1,3 @@
-# RTC
-Entrenador RTC para pilotos ULM - Bohemio Academy.
+# RTC Academy
+
+Versión pública final de RTC Academy · Bohemio 4 Infinity.
