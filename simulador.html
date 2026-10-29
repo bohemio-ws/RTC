@@ -6,6 +6,129 @@
 const $=s=>document.querySelector(s), app=$("#app"), SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const CALLSIGN="EC-RTC";
 const CALLSIGN_PHONETIC="Eco Charlie Romeo Tango Charlie";
+const CALLSIGN_SHORT_PHONETIC="Eco Tango Charlie";
+/* Validación RTC: secuencias completas, datos del escenario y decisión explícita. */
+const RTCTransmission = (() => {
+  const alphabet = {alfa:'A',alpha:'A',bravo:'B',charlie:'C',charly:'C',charli:'C',delta:'D',eco:'E',echo:'E',foxtrot:'F',golf:'G',hotel:'H',india:'I',juliett:'J',juliet:'J',kilo:'K',lima:'L',mike:'M',november:'N',oscar:'O',papa:'P',quebec:'Q',romeo:'R',sierra:'S',tango:'T',uniform:'U',victor:'V',whiskey:'W',whisky:'W',xray:'X',yankee:'Y',zulu:'Z'};
+  const digits = {cero:'0',uno:'1',dos:'2',tres:'3',cuatro:'4',cinco:'5',seis:'6',siete:'7',ocho:'8',nueve:'9'};
+  const normalize = text => String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\bpanpan\b/g,'pan pan').replace(/\bmay day\b/g,'mayday').replace(/\s+/g,' ').trim();
+  const tokens = text => normalize(text).split(' ').filter(Boolean);
+  function candidates(text) {
+    const words = tokens(text), found = [];
+    for (let i = 0; i < words.length; i++) {
+      const start = i;
+      if (/^ec[a-z0-9]{3,}$/.test(words[i])) {
+        found.push({code:words[i].toUpperCase(),start,end:i+1});
+      } else if (words[i] === 'ec' && /^[a-z0-9]{2,5}$/.test(words[i+1] || '')) {
+        found.push({code:('ec'+words[++i]).toUpperCase(),start,end:i+1});
+      } else if (words[i] === 'e' && words[i+1] === 'tc') {
+        found.push({code:'ETC',start,end:++i+1});
+      } else {
+        let code = '';
+        const letter = word => alphabet[word] || (/^[bcdefghijklmnopqrstuvwxyz]$/.test(word || '') ? word.toUpperCase() : '');
+        while (i < words.length && letter(words[i])) code += letter(words[i++]);
+        if (code.length >= 2) found.push({code,start,end:i});
+        if (code) i--;
+      }
+    }
+    return found;
+  }
+  function corrected(text, pattern) {
+    const n = normalize(text), parts = n.split(/\bcorreccion\b/), last = parts[parts.length-1];
+    return parts.length > 1 && pattern.test(last) ? last : n;
+  }
+  function identity(text, allowShort = true) {
+    const n = corrected(text, /\b(ec\b|ecrtc\b|etc\b|eco\b|echo\b|e\b)/), found = candidates(n);
+    const valid = found.length > 0 && found.every(x => x.code === 'ECRTC' || (allowShort && x.code === 'ETC'));
+    return {ok:valid,registration:valid?'EC-RTC':'',form:valid?(found.some(x=>x.code==='ECRTC')?'full':'short'):'',candidates:found,atEnd:valid&&found[found.length-1].end===tokens(n).length};
+  }
+  function numbersAfter(text, marker) {
+    const n = corrected(text, new RegExp('\\b'+marker+'\\b')), words = tokens(n), values = [];
+    for (let i=0;i<words.length;i++) {
+      if (words[i] !== marker) continue;
+      let j=i+1, value='';
+      while (j<words.length && (digits[words[j]]!==undefined || /^\d+$/.test(words[j]))) {
+        value += digits[words[j]] ?? words[j]; j++;
+      }
+      values.push(value);
+      if (words[j]==='y' && (digits[words[j+1]]!==undefined || /^\d+$/.test(words[j+1]||''))) values.push('AMBIGUO');
+    }
+    return values;
+  }
+  const rules = {
+    platform:{position:/\bplataforma\b/,intent:/\b(salida|vuelo local|rodaje|puesta en marcha)\b/},
+    taxi:{position:/\b(rodando|rodaje|ruedo)\b/,intent:/\b(rodando|rodaje|ruedo)\b/},
+    hold:{position:/\b(punto de espera|mantengo posicion|manteniendo posicion|mantendre posicion)\b/,intent:/\b(listo|solicito|solicitamos|mantengo|manteniendo|mantendre)\b/},
+    lineup:{position:/\b(pista|alineo|alineando|alineado)\b/,intent:/\b(entro|entrando|alineo|alineando|alineado)\b/},
+    departure:{position:/\bpista\b/,intent:/\b(despego|despegando|despegar|despegue|iniciando carrera)\b/},
+    upwind:{position:/\b(ascenso|viento en cara)\b/,intent:/\b(asciendo|ascendiendo|ascenso|continuo|continuando|notifico)\b/},
+    crosswind:{position:/\bviento cruzado\b/,intent:/\bviento cruzado\b/},
+    downwind:{position:/\bviento en cola\b/,intent:/\bviento en cola\b/},
+    base:{position:/\bbase\b/,intent:/\bbase\b/},
+    final:{position:/\bfinal\b/,intent:/\bfinal\b/},
+    landing:{position:/\bpista\b/,intent:/\b(aterrizo|aterrizando|aterrizar|toma|tomando tierra)\b/},
+    parking:{position:/\b(plataforma|estacionamiento|aparcamiento)\b/,intent:/\b(estacionado|estacionando|plataforma|estacionamiento|aparcamiento)\b/},
+    exit:{position:/\bpunto\b/,intent:/\b(abandono|abandonando|salgo|saliendo)\b/},
+    enroute:{position:/\b(en ruta|millas?|kilometros?|punto)\b/,intent:/\b(en ruta|procedo|procediendo|rumbo|hacia)\b/},
+    arrival:{position:/\b(millas?|kilometros?|punto|vertical|aproximandome)\b/,intent:/\b(solicito|incorporacion|incorporarme|incorporando|aterrizaje|aterrizar|para su campo)\b/},
+    emergency:{position:/\b(millas?|kilometros?|punto|vertical|ascenso|base|final|en ruta)\b/,intent:/\b(regreso|regresar|regresando|aterrizaje|aterrizar|forzoso|prioridad|desvio|desviando)\b/},
+    divert:{position:/\b(millas?|kilometros?|punto|vertical|en ruta)\b/,intent:/\b(desvio|desviando|alternativo|alternativa|regreso|regresando|procedo|procediendo)\b/},
+    approach:{position:/\b(aproximacion|final|base)\b/,intent:/\b(aterrizaje|aterrizar|aterrizando|forzoso|aproximacion)\b/}
+  };
+  const labels = {station:'estación llamada',callsign:'indicativo',position:'posición de esta fase',intent:'intención de esta fase',runway:'pista en servicio',signal:'prioridad',nature:'naturaleza de la incidencia'};
+  function assess(text, ctx) {
+    const n=normalize(text), call=identity(text,!!ctx.allowShort), rule=rules[ctx.phase];
+    if (!rule) return {accepted:false,outcome:'REPEAT',score:0,critical:false,notes:['Escenario sin regla de validación.'],reply:'REPITA. Escenario pendiente de validar.',call};
+    const positionText=corrected(text,/\b(plataforma|rodando|rodaje|espera|posicion|ascenso|viento|base|final|punto|ruta|millas?|kilometros?|vertical|aproximacion|estacionamiento)\b/);
+    const field=normalize(ctx.field.name), service=String(ctx.field.service), tower=service.includes('TORRE');
+    const stationText=corrected(text,/\baerodromo\b/),firstCall=candidates(stationText)[0];
+    const address=firstCall?tokens(stationText).slice(0,firstCall.start).join(' '):stationText;
+    const calledFields=address.match(/\baerodromo (?:norte|sur|este|oeste)\b/g)||[];
+    const hasService=service==='AUTOINFO'?/\b(trafico|radio|autoinfo|autoinformacion)\b/.test(address):tower?/\btorre\b/.test(address):/\b(afis|informacion)\b/.test(address);
+    const station=calledFields.length>0&&calledFields.every(x=>x===field)&&hasService;
+    const values=numbersAfter(text,'pista'), need=[...ctx.need];
+    if (ctx.runwayRequired&&!need.includes('runway')) need.push('runway');
+    if (ctx.readback) {const i=need.indexOf('station');if(i>=0)need.splice(i,1);}
+    if (ctx.initialContact&&!need.includes('station')) need.push('station');
+    const vals={station,callsign:call.ok,position:rule.position.test(positionText),intent:rule.intent.test(positionText),runway:values.length>0&&values.every(x=>x===ctx.runway),signal:ctx.signal==='PAN PAN'?/\bpan pan\b/.test(n)&&!/\bmay ?day\b/.test(n):/\bmay ?day\b/.test(n),nature:/\b(motor|potencia|humo|fuego|combustible|averia|fallo|problema)\b/.test(n)};
+    const missing=need.filter(k=>!vals[k]), notes=missing.map(k=>'Falta o debe corregirse: '+(labels[k]||k));
+    let critical=false, outcome='ACCEPT', reply='', accepted=false;
+    const conflictingRunway=values.length>0&&!vals.runway;
+    const falseAuthority=!tower&&/\b(autorizado|autorizada|autorice|permiso concedido)\b/.test(n);
+    const negated=/\b(no|negativo)\s+(estoy|estamos|estare|voy|entro|entrando|alineo|despego|despegando|aterrizo|aterrizando|mantengo|solicito|me encuentro)\b|\bno\s+(?:en\s+)?(plataforma|base|final|viento|punto)\b/.test(positionText);
+    const positionConflict=/\b(plataforma|base|final|viento en cola|viento cruzado|punto de espera)\b/g;
+    const currentPositions=Array.from(positionText.matchAll(positionConflict)).filter(m=>!/(?:\ba|\bal|\bhacia|\bpara)\s+$/.test(positionText.slice(0,m.index))).map(m=>m[1]);
+    const wrongPosition=currentPositions.some(p=>!rule.position.test(p)&&!['emergency','divert','approach'].includes(ctx.phase));
+    const wrongStation=calledFields.some(x=>x!==field);
+    const readbackRules={taxi:/\b(ruedo|rodando)\b.*\bpunto de espera\b/,hold:/\b(mantengo|manteniendo|mantendre) posicion\b/,lineup:/\b(entro|entrando|alineo|alineando|alineado)\b/,departure:/\bautorizad[oa]\b.*\b(despegar|despegue)\b/,landing:/\bautorizad[oa]\b.*\b(aterrizar|aterrizaje)\b/};
+    const wrongReadback=ctx.readback&&(!readbackRules[ctx.phase]?.test(positionText)||!call.atEnd);
+    const entersWhileHolding=ctx.phase==='hold'&&/\b(entro|entrando|alineo|alineando|despego|despegando)\b/.test(positionText);
+    const wrongPoint=ctx.phase==='exit'&&!new RegExp('\\bpunto\\s+(?:'+({W:'whiskey|whisky|w',E:'eco|echo|e',N:'november|n',S:'sierra|s'}[ctx.field.exit])+')\\b').test(positionText);
+    const destinations=Array.from(n.matchAll(/\b(?:a|hacia|destino)\s+(aerodromo (?:norte|sur|este|oeste))\b/g),m=>m[1]);
+    const wrongDestination=ctx.phase==='enroute'&&ctx.destination&&destinations.some(x=>x!==normalize(ctx.destination.name));
+    const wrongPriority=ctx.phase==='emergency'&&((ctx.signal==='PAN PAN'&&/\bmay ?day\b/.test(n))||(ctx.signal==='MAYDAY'&&/\bpan pan\b/.test(n)));
+    if (!n) {outcome='REPEAT';reply='Última estación llamando a '+ctx.field.name+', REPITA.';}
+    else if (!call.ok) {outcome='IDENTIFY';reply='Última estación llamando a '+ctx.field.name+', REPITA su indicativo'+(identity(text,true).ok?' completo':'')+' y el mensaje.';}
+    else if (/\b(repita|repitame)\b/.test(n)) {outcome='REPEAT_INSTRUCTION';reply=ctx.instruction||ctx.prompt;notes.length=0;}
+    else if (conflictingRunway||falseAuthority||negated||wrongPosition||wrongStation||wrongReadback||entersWhileHolding||wrongPoint||wrongDestination||wrongPriority) {
+      critical=true;outcome='NEGATIVE';
+      if (conflictingRunway) notes.push('La pista transmitida debe coincidir exactamente con '+ctx.runway+'.');
+      if (falseAuthority) notes.push('Este servicio proporciona información; utiliza una notificación de posición e intención.');
+      if (negated||wrongPosition) notes.push('La posición o la acción transmitida contradice la fase mostrada.');
+      if (wrongStation) notes.push('La estación llamada debe corresponder al aeródromo de esta fase.');
+      if (wrongReadback) notes.push('Colaciona la instrucción y termina con tu indicativo.');
+      if (entersWhileHolding) notes.push('Colaciona mantener posición en el punto de espera.');
+      if (wrongPoint) notes.push('El punto de salida de este escenario es '+ctx.field.exit+'.');
+      if (wrongDestination) notes.push('El destino de esta etapa es '+ctx.destination.name+'.');
+      if (wrongPriority) notes.push('Comunica '+ctx.signal+' para la gravedad descrita en este ejercicio.');
+      reply=tower?'NEGATIVO. '+(ctx.instruction||('Pista '+ctx.runway+'. '+ctx.prompt))+' REPITA.':'Corrección del instructor: '+notes[notes.length-1]+' REPITA la comunicación.';
+    } else if (missing.length) {outcome='REPEAT';reply='REPITA '+missing.map(k=>labels[k]||k).join(', ')+'.';}
+    else {accepted=true;reply='Eco Tango Charlie, '+(service==='AUTOINFO'?'mensaje de tráfico recibido.':'recibido.');}
+    const coverage=Math.round(100*(need.length-missing.length)/need.length),score=accepted?100:Math.min(critical?49:99,coverage);
+    return {accepted,outcome,score,critical,notes,reply,call,slots:vals,missing,informational:outcome==='REPEAT_INSTRUCTION'};
+  }
+  return {normalize,identity,numbersAfter,assess};
+})();
 const fields=[
 {id:"N",name:"Aeródromo Norte",rwy:"06/24",heading:60,service:"AUTOINFO",exit:"W",freq:"SIM-N"},
 {id:"S",name:"Aeródromo Sur",rwy:"18/36",heading:180,service:"TORRE SIMULADA",exit:"E",freq:"SIM-S"},
@@ -47,8 +170,8 @@ function safe(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 function norm(t){return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[.,;:!?-]/g," ").replace(/\s+/g," ").trim()}
 const ICAO_PHONETIC={alfa:"A",alpha:"A",bravo:"B",charlie:"C",delta:"D",eco:"E",echo:"E",foxtrot:"F",golf:"G",hotel:"H",india:"I",juliett:"J",juliet:"J",kilo:"K",lima:"L",mike:"M",november:"N",oscar:"O",papa:"P",quebec:"Q",romeo:"R",sierra:"S",tango:"T",uniform:"U",victor:"V",whiskey:"W",whisky:"W",xray:"X",yankee:"Y",zulu:"Z"};
 function phoneticLetters(text){return norm(text).split(" ").map(w=>ICAO_PHONETIC[w]||null)}
-function callsignFromSpeech(text){const words=norm(text).split(" "),letters=phoneticLetters(text);for(let i=0;i<words.length;i++){if(words[i]==="ec"&&words[i+1]==="rtc")return "EC-RTC";if(words.slice(i,i+5).join(" ")==="e c r t c")return "EC-RTC";if(letters.slice(i,i+5).join("")==="ECRTC")return "EC-RTC"}return ""}
-function recognizedCallsign(text){return callsignFromSpeech(text)==="EC-RTC"}
+function callsignFromSpeech(text){return RTCTransmission.identity(text,true).registration}
+function recognizedCallsign(text,allowShort=true){return RTCTransmission.identity(text,allowShort).ok}
 function phoneticDisplay(text){const words=String(text).split(/(\s+)/);return words.map(w=>ICAO_PHONETIC[norm(w)]||w).join("")}
 function say(t){if(!("speechSynthesis"in window))return;speechSynthesis.cancel();speechSynthesis.resume();const u=new SpeechSynthesisUtterance(t);u.lang="es-ES";u.rate=.93;const vs=speechSynthesis.getVoices(),v=vs.find(x=>x.lang.toLowerCase()==="es-es")||vs.find(x=>x.lang.startsWith("es"));if(v)u.voice=v;speechSynthesis.speak(u)}
 
@@ -73,14 +196,25 @@ function numberIssues(i,n){
  3:{required:[["Pista 06",/\b(06|cero seis)\b/]],forbidden:[["Pista 24",/\b(24|dos cuatro)\b/]]}
  };const r=rules[i];if(!r)return[];const errors=[];for(const [label,re] of r.required)if(!re.test(n))errors.push("Falta valor exacto: "+label);for(const [label,re] of r.forbidden)if(re.test(n))errors.push("Valor contradictorio detectado: "+label);return errors
 }
+function drillTransmission(text){
+ if(drillIdx===1)return null;
+ const phaseByDrill={0:"platform",2:"hold",3:"downwind",4:"exit",5:"emergency",6:"emergency"},p=phaseByDrill[drillIdx];
+ const field=drillIdx===2?{...fields[1],rwy:"24/06"}:drillIdx===5?fields[1]:fields[0];
+ return RTCTransmission.assess(text,{phase:p,field,runway:drillIdx===2?"24":"06",allowShort:drillIdx!==0,initialContact:drillIdx===0,
+ need:phases[p][2],runwayRequired:[2,3].includes(drillIdx),readback:drillIdx===2,
+ instruction:drillIdx===2?"Mantenga posición, pista dos cuatro.":"",prompt:drills[drillIdx].question,signal:drillIdx===6?"MAYDAY":"PAN PAN",destination:fields[1]});
+}
 function drillCheck(text){
- const d=drills[drillIdx],n=norm(text),results=d.checks.map(([name,words])=>({name,ok:words.some(w=>n.includes(norm(w)))})),hits=results.filter(x=>x.ok).length,coverage=Math.round(hits/results.length*100),issues=numberIssues(drillIdx,n),critical=issues.length>0,wrongPriority=(drillIdx===5&&/\bmayday\b/.test(n))||(drillIdx===6&&/\bpan pan\b/.test(n)&&!/\bmayday\b/.test(n));
+ const d=drills[drillIdx],n=norm(text),results=d.checks.map(([name,words])=>({name,ok:name==="Indicativo"?recognizedCallsign(text,drillIdx!==0):words.some(w=>n.includes(norm(w)))})),hits=results.filter(x=>x.ok).length,coverage=Math.round(hits/results.length*100),issues=numberIssues(drillIdx,n),critical=issues.length>0,wrongPriority=(drillIdx===5&&/\bmayday\b/.test(n))||(drillIdx===6&&/\bpan pan\b/.test(n)&&!/\bmayday\b/.test(n));
  if(wrongPriority)issues.push("Prioridad incorrecta para la gravedad simulada.");
- const score=critical||wrongPriority?Math.min(coverage,49):coverage;
+ const semantic=drillTransmission(text);
+ if(semantic&&!semantic.accepted)issues.push(...semantic.notes,semantic.reply);
+ const accepted=coverage===100&&!issues.length&&!wrongPriority&&(!semantic||semantic.accepted);
+ const score=critical||wrongPriority||semantic?.critical?Math.min(coverage,49):semantic&&!semantic.accepted?Math.min(coverage,semantic.score):coverage;
  drillAttempts[drillIdx]=(drillAttempts[drillIdx]||0)+1;drillResults.push({drill:drillIdx,score,text,issues});
  const note=issues.length?"No avances todavía: revisa los valores o la prioridad.":coverage===100?"Elementos detectados; no es una certificación de fraseología o aptitud RTC.":"Faltan elementos que conviene practicar antes de avanzar.";
- $("#feedback").innerHTML='<section class="card feedback"><h3>Cobertura detectada: '+coverage+' %</h3><p><b>Resultado didáctico: '+score+' %</b></p>'+results.map(x=>'<div class="line '+(x.ok?"good":"warn")+'">'+(x.ok?"✓ ":"○ ")+safe(x.name)+'</div>').join("")+issues.map(x=>'<div class="line bad">⚠ '+safe(x)+'</div>').join("")+'<p>'+safe(note)+'</p><div class="radio"><b>Modelo didáctico:</b><p>'+safe(d.model)+'</p></div><div class="choice"><button class="btn" id="listenModel">🔊 Escuchar modelo</button><button class="btn" id="retryDrill">Repetir</button><button class="btn primary" id="nextDrill">Siguiente →</button></div></section>';
- $("#listenModel").onclick=()=>say(d.model);$("#retryDrill").onclick=()=>drillShow(drillIdx);$("#nextDrill").onclick=()=>drillShow((drillIdx+1)%drills.length)
+ $("#feedback").innerHTML='<section class="card feedback"><h3>Cobertura detectada: '+coverage+' %</h3><p><b>Resultado didáctico: '+score+' %</b></p>'+results.map(x=>'<div class="line '+(x.ok?"good":"warn")+'">'+(x.ok?"✓ ":"○ ")+safe(x.name)+'</div>').join("")+issues.map(x=>'<div class="line bad">⚠ '+safe(x)+'</div>').join("")+'<p>'+safe(note)+'</p><div class="radio"><b>Modelo didáctico:</b><p>'+safe(d.model)+'</p></div><div class="choice"><button class="btn" id="listenModel">🔊 Escuchar modelo</button><button class="btn" id="retryDrill">Repetir</button>'+(accepted?'<button class="btn primary" id="nextDrill">Siguiente →</button>':'')+'</div></section>';
+ $("#listenModel").onclick=()=>say(d.model);$("#retryDrill").onclick=()=>drillShow(drillIdx);if(accepted){const validatedIndex=drillIdx,nextButton=$("#nextDrill");nextButton.onclick=()=>{if(nextButton.isConnected&&drillIdx===validatedIndex)drillShow((validatedIndex+1)%drills.length)}}
 }
 function reference(){const entries=[
 ["QNH","Presión reducida al nivel medio del mar según la atmósfera tipo. Con QNH ajustado, el altímetro indica elevación del aeródromo cuando se encuentra en él. No equivale a altura sobre terreno."],
@@ -128,15 +262,97 @@ function quizHome(){const completed=Object.keys(quizAnswers).length,correct=Obje
 function quizShow(i){const q=lessonQuiz[i];app.innerHTML='<div class="row"><button class="btn" id="back">← Preguntas</button><span class="tag">LECCIÓN '+(q.lesson+1)+'</span></div><section class="card"><h2>'+safe(q.q)+'</h2><div id="quizOptions">'+q.options.map((opt,j)=>'<button class="btn" style="display:block;width:100%;text-align:left;margin:9px 0" data-answer="'+j+'">'+String.fromCharCode(65+j)+'. '+safe(opt)+'</button>').join("")+'</div><div id="quizFeedback"></div></section>';$("#back").onclick=quizHome;document.querySelectorAll("[data-answer]").forEach(b=>b.onclick=()=>{const choice=+b.dataset.answer,correct=choice===q.answer;quizAnswers[i]={choice,correct};$("#quizOptions").innerHTML='';$("#quizFeedback").innerHTML='<div class="card feedback"><h3 class="'+(correct?"good":"warn")+'">'+(correct?"Respuesta correcta":"Respuesta a revisar")+'</h3><p>'+safe(q.why)+'</p><p><b>Respuesta:</b> '+safe(q.options[q.answer])+'</p><button class="btn primary" id="quizNext">'+(i<lessonQuiz.length-1?"Siguiente lección →":"Ver resultados")+'</button></div>';$("#quizNext").onclick=()=>i<lessonQuiz.length-1?quizShow(i+1):quizHome()})}
 
 function menu(){st.done=false;app.innerHTML='<section class="card"><div class="k">MÉTODO BOHEMIO ACADEMY</div><h2>Escucha · observa · transmite</h2><p>El avión vuela solo. Tú eres responsable de la radio, del momento de transmitir y de comprender la situación.</p><p class="warn">Todos los aeródromos, puntos y frecuencias de este módulo son FICTICIOS. No apto para navegación real.</p></section><section class="card"><button class="btn primary" id="training">📚 FORMACIÓN COMPLETA · 13 LECCIONES</button><p class="muted">Lecciones, explicaciones y autoevaluación.</p></section><section class="card"><button class="btn primary" id="drillOpen">🎙️ PRÁCTICAS GUIADAS · 7 EJERCICIOS</button><p class="muted">Indicativos, QNH, colación, circuito, salida y emergencias.</p></section><section class="card"><button class="btn primary" id="bankMenu">🧠 BANCO DE PREGUNTAS · REPASO Y EVALUACIÓN</button><p class="muted">42 preguntas explicadas; repaso por tema y evaluación de 20 preguntas.</p></section><section class="card"><button class="btn" id="reference">📖 GLOSARIO RTC · CÓDIGOS Q Y SEGURIDAD</button></section><div class="grid">'+exercises.map(e=>'<button class="btn" data-mode="'+e.id+'"><b>'+e.title+'</b><br><small>'+e.desc+'</small></button>').join("")+'</div><section class="card"><b>Configuración</b><label>Aeródromo A</label><select id="from">'+fields.map(f=>'<option value="'+f.id+'">'+f.name+' · '+f.rwy+' · '+f.service+'</option>').join("")+'</select><label>Aeródromo B (distinto)</label><select id="to">'+fields.map(f=>'<option value="'+f.id+'">'+f.name+' · '+f.rwy+' · '+f.service+'</option>').join("")+'</select><p class="muted">El examen final exige completar A → B → A, incluyendo las dos salidas y las dos llegadas.</p></section>';$("#to").value="S";const trainingButton=$("#training");if(trainingButton)trainingButton.onclick=training;$("#drillOpen").onclick=drillHome;$("#bankMenu").onclick=bankHome;$("#reference").onclick=reference;document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>begin(b.dataset.mode))}
-function begin(id){const a=fields.find(f=>f.id===$("#from").value),b=fields.find(f=>f.id===$("#to").value);if(a.id===b.id){alert("Selecciona dos aeródromos diferentes.");return}st={...st,mode:id,from:a,to:b,leg:0,step:0,steps:id==="exam"?route.slice():exercises.find(x=>x.id===id).phases.slice(),scores:[],events:[],done:false,waiting:false,transcript:"",error:""};draw()}
+function begin(id){const a=fields.find(f=>f.id===$("#from").value),b=fields.find(f=>f.id===$("#to").value);if(a.id===b.id){alert("Selecciona dos aeródromos diferentes.");return}st={...st,mode:id,from:a,to:b,leg:0,step:0,steps:id==="exam"?route.slice():exercises.find(x=>x.id===id).phases.slice(),scores:[],events:[],done:false,waiting:false,transcript:"",error:"",radioContacts:{},acceptedTransmission:null};draw()}
 function activeField(){return st.leg===0?st.from:st.to}
 function targetField(){return st.leg===0?st.to:st.from}
 function phase(){return st.steps[st.step]}
-function mapSVG(){const f=activeField(),p=phase(),idx=st.step;const coords={platform:[42,190],taxi:[95,183],hold:[118,175],lineup:[155,170],departure:[155,125],upwind:[155,68],crosswind:[222,56],downwind:[258,120],base:[258,185],final:[155,208],landing:[155,160],parking:[42,190],exit:[220,35],enroute:[280,42],arrival:[290,130],emergency:[250,70],divert:[220,80],approach:[155,207]};const xy=coords[p]||[155,130];const runwayAngle=f.heading-0;return '<svg class="map" viewBox="0 0 330 235" role="img" aria-label="Mapa esquemático de pista, circuito y posición de aeronave"><rect width="330" height="235" rx="10" fill="#102a3a"/><path d="M42 190 L95 183 L118 175 L155 170" fill="none" stroke="#d8c477" stroke-width="5"/><path d="M155 60 L258 60 L258 208 L155 208" fill="none" stroke="#51b8c7" stroke-dasharray="6 5" stroke-width="2"/><g transform="rotate('+runwayAngle+' 155 135)"><rect x="144" y="67" width="22" height="136" fill="#627681" stroke="#c8dce4"/><path d="M155 73 V195" stroke="#fff" stroke-width="2" stroke-dasharray="8 7"/></g><rect x="15" y="174" width="64" height="37" rx="5" fill="#255367"/><text x="47" y="190" text-anchor="middle" fill="white" font-size="10">Plataforma</text><text x="47" y="202" text-anchor="middle" fill="white" font-size="9">PARK</text><circle cx="'+xy[0]+'" cy="'+xy[1]+'" r="14" fill="#eebc55" stroke="#fff" stroke-width="2"/><text x="'+xy[0]+'" y="'+(xy[1]+5)+'" text-anchor="middle" fill="#081523" font-size="16">✈</text><text x="10" y="20" fill="#d6ecf4" font-size="11">N ↑ · '+f.name+'</text><text x="10" y="32" fill="#bdd0d8" font-size="10">Pista '+f.rwy+' · esquema NO GEOGRÁFICO</text><text x="318" y="221" text-anchor="end" fill="#9bdfe8" font-size="11">Fase '+(idx+1)+'/'+st.steps.length+'</text></svg>'}
-function draw(){if(st.step>=st.steps.length){if(st.mode==="exam"&&st.leg===0){st.leg=1;st.step=0;st.steps=route.slice();st.events.push("Etapa A → B terminada. Comienza regreso B → A.");draw();return}finish();return}const p=phase(),info=phases[p],f=activeField(),dest=targetField(),percent=Math.round(st.step/st.steps.length*100);st.waiting=true;st.transcript="";st.error="";app.innerHTML='<div class="row"><button class="btn" id="back">← Menú</button><span class="tag">'+safe(exercises.find(x=>x.id===st.mode).title)+'</span></div><section class="card"><div class="k">ESCENARIO FICTICIO · SOLO ENTRENAMIENTO</div><h2>'+safe(info[0])+'</h2><div class="row"><span>Origen: <b>'+safe(f.name)+'</b></span><span>Destino: <b>'+safe(dest.name)+'</b></span></div><p class="muted">Etapa '+(st.leg+1)+(st.mode==="exam"?"/2":"")+' · '+(st.step+1)+' de '+st.steps.length+'</p><div class="bar"><i style="width:'+percent+'%"></i></div><div style="margin-top:12px">'+mapSVG()+'</div><p>'+safe(info[1])+'</p><p class="muted">Servicio: '+safe(f.service)+' · Pistas '+f.rwy+' · Punto salida '+f.exit+' · Frecuencia FICTICIA '+f.freq+'</p></section><section class="card"><div class="k">TU TURNO DE RADIO</div><p>Observa la fase y transmite cuando corresponda. La estación de respuesta depende del servicio simulado.</p><button id="ptt" class="ptt">MANTENER<br>PTT</button><div id="status" class="muted">Pulsa PTT y habla; suelta al terminar.</div><div id="out" class="radio">La transcripción aparecerá aquí.</div><div class="choice"><button class="btn" id="manualBtn">⌨ Escribir</button><button class="btn" id="skip">Continuar sin transmitir</button></div><div id="manualArea"></div><div id="feedback"></div></section>';$("#back").onclick=()=>{try{st.rec?.abort()}catch{}menu()};$("#manualBtn").onclick=()=>{$("#manualArea").innerHTML='<textarea id="manualText" placeholder="Escribe la comunicación para probar el evaluador"></textarea><button class="btn primary" id="manualSend">Evaluar texto</button>';$("#manualSend").onclick=()=>evaluate($("#manualText").value)};$("#skip").onclick=()=>evaluate("",true);bindPTT()}
+function mapSVG(){const f=radioContext().field,p=phase(),idx=st.step;const coords={platform:[42,190],taxi:[95,183],hold:[118,175],lineup:[155,170],departure:[155,125],upwind:[155,68],crosswind:[222,56],downwind:[258,120],base:[258,185],final:[155,208],landing:[155,160],parking:[42,190],exit:[220,35],enroute:[280,42],arrival:[290,130],emergency:[250,70],divert:[220,80],approach:[155,207]};const xy=coords[p]||[155,130];const runwayAngle=f.heading-0;return '<svg class="map" viewBox="0 0 330 235" role="img" aria-label="Mapa esquemático de pista, circuito y posición de aeronave"><rect width="330" height="235" rx="10" fill="#102a3a"/><path d="M42 190 L95 183 L118 175 L155 170" fill="none" stroke="#d8c477" stroke-width="5"/><path d="M155 60 L258 60 L258 208 L155 208" fill="none" stroke="#51b8c7" stroke-dasharray="6 5" stroke-width="2"/><g transform="rotate('+runwayAngle+' 155 135)"><rect x="144" y="67" width="22" height="136" fill="#627681" stroke="#c8dce4"/><path d="M155 73 V195" stroke="#fff" stroke-width="2" stroke-dasharray="8 7"/></g><rect x="15" y="174" width="64" height="37" rx="5" fill="#255367"/><text x="47" y="190" text-anchor="middle" fill="white" font-size="10">Plataforma</text><text x="47" y="202" text-anchor="middle" fill="white" font-size="9">PARK</text><circle cx="'+xy[0]+'" cy="'+xy[1]+'" r="14" fill="#eebc55" stroke="#fff" stroke-width="2"/><text x="'+xy[0]+'" y="'+(xy[1]+5)+'" text-anchor="middle" fill="#081523" font-size="16">✈</text><text x="10" y="20" fill="#d6ecf4" font-size="11">N ↑ · '+f.name+'</text><text x="10" y="32" fill="#bdd0d8" font-size="10">Pista '+f.rwy+' · esquema NO GEOGRÁFICO</text><text x="318" y="221" text-anchor="end" fill="#9bdfe8" font-size="11">Fase '+(idx+1)+'/'+st.steps.length+'</text></svg>'}
+function draw(){if(st.step>=st.steps.length){if(st.mode==="exam"&&st.leg===0){st.leg=1;st.step=0;st.steps=route.slice();st.events.push("Etapa A → B terminada. Comienza regreso B → A.");draw();return}finish();return}st.acceptedTransmission=null;const ctx=radioContext(),p=phase(),info=phases[p],f=ctx.field,dest=targetField(),percent=Math.round(st.step/st.steps.length*100);st.waiting=true;st.transcript="";st.error="";app.innerHTML='<div class="row"><button class="btn" id="back">← Menú</button><span class="tag">'+safe(exercises.find(x=>x.id===st.mode).title)+'</span></div><section class="card"><div class="k">ESCENARIO FICTICIO · SOLO ENTRENAMIENTO</div><h2>'+safe(info[0])+'</h2><div class="row"><span>Origen: <b>'+safe(activeField().name)+'</b></span><span>Destino: <b>'+safe(dest.name)+'</b></span></div><p class="muted">Etapa '+(st.leg+1)+(st.mode==="exam"?"/2":"")+' · '+(st.step+1)+' de '+st.steps.length+'</p><div class="bar"><i style="width:'+percent+'%"></i></div><div style="margin-top:12px">'+mapSVG()+'</div><p>'+safe(ctx.prompt)+'</p><p class="muted">Servicio: '+safe(f.service)+' · Pista en servicio SIMULADA '+ctx.runway+' (par '+f.rwy+') · Punto salida '+f.exit+' · Frecuencia FICTICIA '+f.freq+'</p></section><section class="card"><div class="k">TU TURNO DE RADIO</div>'+(ctx.instruction?'<div class="radio"><b>Instrucción de torre simulada:</b> '+safe(ctx.instruction)+'</div>':'')+'<p class="muted">'+(ctx.allowShort?'Indicativo abreviado disponible: E-TC · Eco Tango Charlie.':'Primer contacto: EC-RTC · Eco Charlie Romeo Tango Charlie.')+'</p><p>Observa la fase y transmite cuando corresponda. La estación de respuesta depende del servicio simulado.</p><button id="ptt" class="ptt">MANTENER<br>PTT</button><div id="status" class="muted">Pulsa PTT y habla; suelta al terminar.</div><div id="out" class="radio">La transcripción aparecerá aquí.</div><div class="choice"><button class="btn" id="manualBtn">⌨ Escribir</button><button class="btn" id="hearScenario">🔊 Escuchar situación</button></div><div id="manualArea"></div><div id="feedback"></div></section>';$("#back").onclick=()=>{try{st.rec?.abort()}catch{}menu()};$("#manualBtn").onclick=()=>{$("#manualArea").innerHTML='<textarea id="manualText" placeholder="Escribe la comunicación para probar el evaluador"></textarea><button class="btn primary" id="manualSend">Evaluar texto</button>';$("#manualSend").onclick=()=>evaluate($("#manualText").value)};$("#hearScenario").onclick=()=>say(ctx.instruction||ctx.prompt);bindPTT()}
+function radioContext() {
+  const p=phase(), arrivalIndex=st.steps.indexOf('arrival'), arriving=arrivalIndex>=0&&st.step>=arrivalIndex;
+  const field=arriving?targetField():activeField(), key=st.leg+':'+field.id+':'+(arriving?'arrival':'departure');
+  const runway=field.rwy.split('/')[0], tower=field.service.includes('TORRE'), allowShort=!!st.radioContacts?.[key];
+  const instructions={taxi:'Ruede al punto de espera pista '+runway+'.',hold:'Mantenga posición, pista '+runway+'.',lineup:'Entre y alinee pista '+runway+'.',departure:'Autorizado a despegar pista '+runway+'.',landing:'Autorizado a aterrizar pista '+runway+'.'};
+  return {phase:p,field,key,runway,allowShort,initialContact:!allowShort,destination:targetField(),need:phases[p][2],
+    runwayRequired:['taxi','hold','lineup','departure','crosswind','downwind','base','final','landing','approach'].includes(p),
+    readback:tower&&!!instructions[p],instruction:tower?(instructions[p]||''):'',
+    signal:'PAN PAN',prompt:p==='emergency'?'Pérdida parcial de potencia: mantienes vuelo estable y solicitas prioridad para regresar. Comunica posición, naturaleza e intención.':phases[p][1]};
+}
 function slots(text){const n=norm(text),f=activeField();const vals={station:/\b(torre|control|informacion|radio|trafico|afis)\b/.test(n)||n.includes(norm(f.name)),callsign:recognizedCallsign(text),position:/\b(plataforma|rodaje|espera|pista|viento|cola|base|final|vertical|millas?|kilometros?|pies|norte|sur|este|oeste|whisky|punto|ascenso)\b/.test(n),intent:/\b(solicit|salid|despeg|aterr|incorpor|rodaj|abandon|notific|entr|continu|frustr|desvi|regres|dirig|proced|emerg|manten)\w*/.test(n),runway:/\b(pista|06|24|18|36|09|27|12|30|dos|seis|ocho|nueve|uno|tres|cero)\b/.test(n),signal:/\b(mayday|may day|pan pan|panpan)\b/.test(n),nature:/\b(motor|potencia|humo|fuego|combustible|averia|fallo|emergencia|problema)\b/.test(n)};return vals}
-function evaluate(t,skipped=false){if(!st.waiting)return;st.waiting=false;try{st.rec?.stop()}catch{}const text=String(t).trim(),need=phases[phase()][2],v=slots(text),missing=need.filter(k=>!v[k]),score=skipped?0:Math.round((need.length-missing.length)/need.length*100),critical=phase()==="emergency"&&!v.signal,station=activeField().service,phrase=text.toLowerCase();let notes=[];if(skipped)notes.push("No se ha transmitido en la fase solicitada.");if(missing.length)notes.push("Elementos no detectados: "+missing.map(k=>({station:"estación",callsign:"indicativo",position:"posición",intent:"intención",runway:"pista",signal:"prioridad",nature:"naturaleza de la incidencia"}[k])).join(", "));if(station==="AUTOINFO"&&/\b(autorizado|autorice|permiso concedido)\b/i.test(text))notes.push("Autoinformación: ninguna aeronave puede conceder autorización ATC.");if(phase()==="emergency"&&!v.signal)notes.push("CRÍTICO: debes decidir y comunicar la prioridad adecuada según la gravedad.");if(phase()==="hold"&&station.includes("TORRE")&&!/autoriz/i.test(text))notes.push("La autorización ATS es condición del escenario; no se presume por el mero avance visual.");if(/roger/i.test(text))notes.push("Revisar fraseología española: evitar importar expresiones estadounidenses sin contexto.");if(score===100)notes.push("Elementos detectados. Esto NO certifica exactitud de valores ni corrección normativa.");const reply=skipped?"No se ha recibido transmisión.":missing.length?"EC-RTC, revise: "+missing.map(k=>({station:"estación",callsign:"indicativo",position:"posición",intent:"intención",runway:"pista",signal:"prioridad",nature:"naturaleza de la incidencia"}[k])).join(", ")+".":station==="AUTOINFO"?"Tráfico simulado recibido. Continúe atento a las demás aeronaves.":"EC-RTC, recibido. Continúe con la siguiente fase simulada.";st.scores.push({leg:st.leg,phase:phase(),score,critical,text,notes});st.events.push("Etapa "+(st.leg+1)+" · "+phases[phase()][0]+": "+score+"%");$("#feedback").innerHTML='<div class="card feedback"><h3>Evaluación provisional: '+score+' %</h3><p>'+safe(text||"Sin transmisión")+'</p>'+notes.map(x=>'<div class="line">'+safe(x)+'</div>').join("")+'<div class="radio"><b>Respuesta simulada:</b> '+safe(reply)+'</div><div class="choice"><button class="btn" id="repeat">🔊 Escuchar</button><button class="btn primary" id="next">Continuar vuelo →</button></div></div>';$("#next").onclick=()=>{st.step++;draw()};$("#repeat").onclick=()=>say(reply);say(reply)}
-function bindPTT(){const p=$("#ptt"),out=$("#out"),status=$("#status");let holding=false,rec=null,finalText="";const start=async e=>{e.preventDefault();if(!st.waiting)return;holding=true;p.classList.add("live");out.textContent="Escuchando…";status.textContent="Preparando micrófono…";try{if(!SR)throw Error("Reconocimiento no disponible");const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());if(!holding)return;rec=new SR();st.rec=rec;rec.lang="es-ES";rec.continuous=false;rec.interimResults=true;rec.maxAlternatives=1;rec.onstart=()=>status.textContent="● TRANSMITIENDO";rec.onresult=e=>{let interim="";for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)finalText+=e.results[i][0].transcript+" ";else interim+=e.results[i][0].transcript}out.textContent=phoneticDisplay((finalText+interim).trim())||"Escuchando…"};rec.onerror=e=>status.textContent="Error de reconocimiento: "+e.error;rec.onend=()=>{p.classList.remove("live");if(st.waiting){const t=(finalText||out.textContent).trim();if(t&&t!=="Escuchando…"&&t!=="La transcripción aparecerá aquí.")evaluate(t);else status.textContent="No se reconoció voz. Repite o escribe."}};rec.start()}catch(err){p.classList.remove("live");status.textContent="Micrófono: "+err.message}};const stop=e=>{e.preventDefault();holding=false;p.classList.remove("live");try{rec?.stop()}catch{}};p.addEventListener("pointerdown",start);p.addEventListener("pointerup",stop);p.addEventListener("pointercancel",stop)}
+function evaluate(t,skipped=false) {
+  if(!st.waiting)return;
+  st.waiting=false;
+  try{st.rec?.rtcCancel?.();st.rec?.abort()}catch{}
+  st.rec=null;
+  const text=skipped?'':String(t||'').trim(),ctx=radioContext(),result=RTCTransmission.assess(text,ctx);
+  const token={leg:st.leg,step:st.step,phase:phase(),text};
+  st.acceptedTransmission=result.accepted?token:null;
+  if(!result.informational)st.scores.push({leg:st.leg,phase:phase(),score:result.score,critical:result.critical,text,notes:result.notes,accepted:result.accepted,outcome:result.outcome});
+  st.events.push('Etapa '+(st.leg+1)+' · '+phases[phase()][0]+': '+result.outcome);
+  if(result.accepted){st.radioContacts=st.radioContacts||{};st.radioContacts[ctx.key]=true;}
+  const heading=result.accepted?'Transmisión aceptada':'Misma fase · repite la comunicación';
+  $('#feedback').innerHTML='<div class="card feedback"><h3>'+heading+'</h3><p>'+safe(text||'Sin transmisión')+'</p>'+result.notes.map(x=>'<div class="line">'+safe(x)+'</div>').join('')+
+    (result.call.ok?'<p>Indicativo reconocido: <b>EC-RTC</b>'+ (result.call.form==='short'?' · E-TC: Eco Tango Charlie':' · completo')+'</p>':'')+
+    '<div class="radio"><b>'+(ctx.field.service==='AUTOINFO'?'Respuesta del ejercicio:':'Respuesta simulada:')+'</b> '+safe(result.reply)+'</div><div class="choice"><button class="btn" id="repeat">🔊 Escuchar</button>'+
+    (result.accepted?'<button class="btn primary" id="next">Continuar vuelo →</button>':'<button class="btn primary" id="retryTransmission">Repetir transmisión</button>')+'</div></div>';
+  if(result.accepted)$('#next').onclick=()=>{
+    if(st.acceptedTransmission!==token||st.leg!==token.leg||st.step!==token.step)return;
+    st.acceptedTransmission=null;st.step++;draw();
+  };
+  else {
+    st.waiting=true;
+    $('#status').textContent='Mantienes la misma fase. Pulsa PTT o escribe para repetir.';
+    $('#retryTransmission').onclick=()=>{
+      if(!st.waiting)return;
+      $('#feedback').innerHTML='';$('#out').textContent='La transcripción aparecerá aquí.';
+      const manual=$('#manualText');if(manual)manual.value='';
+      $('#status').textContent='Pulsa PTT y repite el indicativo y el mensaje.';
+    };
+  }
+  $('#repeat').onclick=()=>say(result.reply);say(result.reply);
+}
+function bindPTT() {
+  const p=$('#ptt'),out=$('#out'),status=$('#status'),state=st,step=st.step,leg=st.leg;
+  let holding=false,busy=false,rec=null;
+  const current=()=>st===state&&st.step===step&&st.leg===leg&&p.isConnected;
+  const start=async e=>{
+    e.preventDefault();if(!current()||!st.waiting||busy)return;
+    holding=true;busy=true;p.classList.add('live');out.textContent='Escuchando…';status.textContent='Preparando micrófono…';
+    let finalText='',cancelled=false,failed=false,ended=false;
+    try {
+      if(!SR)throw Error('Reconocimiento no disponible');
+      if('speechSynthesis' in window)speechSynthesis.cancel();
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());
+      if(!holding||!current()||!st.waiting){busy=false;p.classList.remove('live');return;}
+      const capture=new SR();rec=capture;st.rec=capture;rec.lang='es-ES';rec.continuous=false;rec.interimResults=true;rec.maxAlternatives=1;
+      rec.onstart=()=>{if(current())status.textContent='● TRANSMITIENDO';};
+      rec.onresult=e=>{
+        if(!current()||cancelled||ended)return;
+        let finals='',interim='';
+        for(let i=0;i<e.results.length;i++){
+          const words=e.results[i][0].transcript+' ';
+          if(e.results[i].isFinal)finals+=words;else interim+=words;
+        }
+        finalText=finals.trim();out.textContent=phoneticDisplay((finals+interim).trim())||'Escuchando…';
+      };
+      rec.onerror=e=>{failed=true;if(current())status.textContent='Reconocimiento: '+e.error+'. Repite o escribe.';};
+      rec.onend=()=>{
+        if(ended||rec!==capture)return;ended=true;
+        busy=false;holding=false;p.classList.remove('live');if(st.rec===capture)st.rec=null;rec=null;
+        if(!current()||!st.waiting||cancelled||failed)return;
+        if(finalText)evaluate(finalText);
+        else status.textContent='No se recibió una transcripción final. Repite o escribe.';
+      };
+      rec.rtcCancel=()=>{cancelled=true;};rec.start();
+    } catch(err) {
+      busy=false;holding=false;p.classList.remove('live');if(current())status.textContent='Micrófono: '+err.message+'. Puedes escribir.';
+    }
+  };
+  const stop=e=>{e.preventDefault();holding=false;p.classList.remove('live');try{rec?.stop()}catch{}};
+  const cancel=e=>{e.preventDefault();holding=false;rec?.rtcCancel?.();try{rec?.abort()}catch{}p.classList.remove('live');};
+  p.addEventListener('pointerdown',e=>{if(st.waiting)p.setPointerCapture?.(e.pointerId);start(e);});
+  p.addEventListener('pointerup',stop);p.addEventListener('pointercancel',cancel);
+}
 function finish(){const avg=st.scores.length?Math.round(st.scores.reduce((a,b)=>a+b.score,0)/st.scores.length):0,crit=st.scores.filter(x=>x.critical).length,passed=avg>=85&&!crit;app.innerHTML='<section class="card"><div class="k">INFORME FINAL · '+safe(exercises.find(x=>x.id===st.mode).title)+'</div><h2>'+(passed?"Ejercicio completado":"Ejercicio para revisar")+'</h2><h2 class="'+(passed?"good":"warn")+'">'+avg+' %</h2><p>'+st.scores.length+' comunicaciones · '+crit+' omisiones críticas detectadas</p><p class="warn">Resultado didáctico provisional: el evaluador aún no certifica exactitud de QNH, pista, indicativo ni conformidad normativa completa.</p><h3>Historial de comunicaciones</h3>'+st.scores.map(x=>'<div class="line">Etapa '+(x.leg+1)+' · '+safe(phases[x.phase][0])+' · '+x.score+'%<br><small>'+safe(x.text||"Sin transmisión")+'</small></div>').join("")+'<button class="btn primary" id="restart">Nuevo ejercicio</button></section>';$("#restart").onclick=menu}
 menu();
 </script></body></html>
