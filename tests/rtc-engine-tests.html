@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>RTC Engine Stress Tests</title><script src="../rtc-manual-engine.js"></script><body><pre id="out"></pre><script>
+'use strict';const E=window.RTCManualEngine,out=document.querySelector('#out');let pass=0,fail=0;const rows=[];
+function test(name,fn){try{if(!fn())throw Error('resultado falso');pass++;rows.push('✅ '+name)}catch(e){fail++;rows.push('❌ '+name+' — '+e.message)}}
+function assess(t,need,short=false){return E.assess(t,{registration:'EC-RTC',shortAuthorized:short,stationName:'Torre',callsignAddress:short?'Eco Tango Charlie':'Eco Charlie Romeo Tango Charlie',need})}
+// Indicativo: primer contacto completo y abreviación controlada
+test('Indicativo completo exacto',()=>assess('Torre Eco Charlie Romeo Tango Charlie',['station','callsign']).advance);
+test('Variante Echo aceptada',()=>assess('Torre Echo Charlie Romeo Tango Charlie',['station','callsign']).advance);
+test('Abreviado NO aceptado en primer contacto',()=>!assess('Torre Eco Tango Charlie',['station','callsign']).advance);
+test('Abreviado aceptado tras autorización',()=>assess('Eco Tango Charlie recibido',['callsign'],true).advance);
+test('Sin indicativo bloquea',()=>!assess('Torre solicito rodaje',['station','callsign']).advance);
+// Semántica básica
+test('Posición + intención',()=>assess('Eco Tango Charlie plataforma solicito rodaje',['callsign','position','intent'],true).advance);
+test('Falta intención bloquea',()=>!assess('Eco Tango Charlie plataforma',['callsign','position','intent'],true).advance);
+test('Falta posición bloquea',()=>!assess('Eco Tango Charlie solicito salida',['callsign','position','intent'],true).advance);
+// Números
+test('QNH 1017 numérico',()=>E.hasNumber('QNH 1017','1017'));
+test('QNH 1017 hablado',()=>E.hasNumber('QNH uno cero uno siete','1017'));
+test('QNH incorrecto no coincide',()=>!E.hasNumber('QNH uno cero uno cinco','1017'));
+test('Rumbo 090 hablado',()=>E.hasNumber('rumbo cero nueve cero','090'));
+test('Pista 30 hablada',()=>E.hasNumber('pista tres cero','30'));
+test('Frecuencia usa COMA',()=>E.frequencyWords('118.15')==='uno uno ocho coma uno cinco');
+// Emergencia y urgencia
+test('MAYDAY detectado',()=>E.slots('mayday mayday mayday Eco Tango Charlie fallo motor final',{registration:'EC-RTC',shortAuthorized:true}).mayday);
+test('PAN PAN detectado',()=>E.slots('pan pan pan pan pan pan Eco Tango Charlie problema motor',{registration:'EC-RTC',shortAuthorized:true}).pan);
+test('Naturaleza fallo motor',()=>E.slots('fallo de motor').nature);
+// Fraseología y equipos
+test('Verificación de radio',()=>E.slots('Torre Eco Tango Charlie como me recibe',{registration:'EC-RTC',shortAuthorized:true}).radioCheck);
+test('Transpondedor 7700',()=>E.slots('transpondedor siete siete cero cero').squawk);
+test('Frecuencia detectada',()=>E.slots('frecuencia uno uno ocho coma uno cinco').frequency);
+// Robustez entrada
+test('Vacío nunca avanza',()=>!assess('',[]).advance);
+test('Ruido de una palabra nunca avanza',()=>!assess('hola',[]).advance);
+test('Acentos normalizados',()=>E.norm('APROXIMACIÓN')==='aproximacion');
+test('Múltiples espacios normalizados',()=>E.norm('  Eco   Tango   Charlie ')==='eco tango charlie');
+// 500 iteraciones deterministas de invariantes
+for(let i=0;i<500;i++){test('Invariante vacío '+i,()=>!assess(i%2?'':'x',[]).advance)}
+out.textContent='RTC ENGINE STRESS TESTS\n\n'+rows.join('\n')+'\n\nTOTAL: '+(pass+fail)+' | PASS: '+pass+' | FAIL: '+fail;document.title=fail?'RTC TESTS FAIL '+fail:'RTC TESTS OK '+pass;if(fail)document.body.dataset.failed=String(fail);
+</script></body>
