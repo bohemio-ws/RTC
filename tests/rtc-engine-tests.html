@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>RTC Engine Browser Tests</title><script src="../rtc-manual-engine.js"></script><body><pre id="out">Ejecutando…</pre><script>
+'use strict';const E=window.RTCManualEngine,out=document.querySelector('#out');let pass=0,fail=0;const errors=[];
+function t(n,f){try{if(!f())throw Error('false');pass++}catch(e){fail++;errors.push(n+': '+e.message)}}
+function A(x,need=[],short=false,extra={}){return E.assess(x,{registration:'EC-RTC',shortAuthorized:short,stationName:'Torre',callsignAddress:short?'Echo Tango Charlie':'Echo Charlie Romeo Tango Charlie',need,...extra})}
+t('Echo canónico',()=>E.norm('Eco Charlie')==='echo charlie');
+t('Indicativo completo',()=>A('Torre Echo Charlie Romeo Tango Charlie',['station','callsign']).advance);
+t('Abreviado bloqueado al inicio',()=>!A('Torre Echo Tango Charlie',['station','callsign']).advance);
+t('Abreviado autorizado',()=>A('Echo Tango Charlie recibido',['callsign'],true).advance);
+t('Indicativo parecido bloqueado',()=>!A('Torre Echo Charlie Romeo Tango Bravo',['station','callsign']).advance);
+t('Pista correcta',()=>A('Echo Tango Charlie pista tres cero',['callsign','runway'],true,{expected:{runway:'30'}}).advance);
+t('Pista errónea',()=>!A('Echo Tango Charlie pista uno dos',['callsign','runway'],true,{expected:{runway:'30'}}).advance);
+t('QNH correcto',()=>A('Echo Tango Charlie QNH uno cero uno siete',['callsign','qnh'],true,{expected:{qnh:'1017'}}).advance);
+t('Rumbo con cero inicial',()=>A('Echo Tango Charlie rumbo cero nueve cero',['callsign','heading'],true,{expected:{heading:'090'}}).advance);
+t('Rumbo sin cero bloqueado',()=>!A('Echo Tango Charlie rumbo nueve cero',['callsign','heading'],true,{expected:{heading:'090'}}).advance);
+t('Frecuencia con COMA',()=>A('Echo Tango Charlie frecuencia uno dos uno coma cinco',['callsign','frequency'],true,{expected:{frequency:'121.5'}}).advance);
+t('Frecuencia sin COMA bloqueada',()=>!A('Echo Tango Charlie frecuencia uno dos uno cinco',['callsign','frequency'],true,{expected:{frequency:'121.5'}}).advance);
+t('7700 correcto',()=>A('Echo Tango Charlie transpondedor siete siete cero cero',['callsign','squawk'],true,{expected:{squawk:'7700'}}).advance);
+t('ATC autoriza',()=>E.serviceCanAuthorize('ATC'));
+t('AFIS no autoriza',()=>!E.serviceCanAuthorize('AFIS'));
+t('AUTOINFO no autoriza',()=>!E.serviceCanAuthorize('AUTOINFO'));
+t('27 módulos',()=>E.modules.length===27);
+const noise=['hola','prueba','coche','buenas','uno dos','motor','pista','torre','echo','charlie','qnh','rumbo'];for(let i=0;i<2000;i++){const x=noise[i%noise.length]+' '+noise[(i*5+3)%noise.length];t('fuzz '+i,()=>!A(x,['station','callsign','position','intent']).advance)}
+out.textContent=`RTC BROWSER TESTS\nTOTAL ${pass+fail} · PASS ${pass} · FAIL ${fail}`+(errors.length?'\n\n'+errors.slice(0,30).join('\n'):'');document.body.dataset.result=fail?'fail':'pass';document.title=fail?'RTC TESTS FAIL':'RTC TESTS OK';
+</script></body>

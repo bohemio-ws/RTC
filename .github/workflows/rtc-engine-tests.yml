@@ -1,0 +1,29 @@
+name: RTC engine stress tests
+on:
+  push:
+    branches: [rtc-manual-engine]
+    paths:
+      - 'rtc-manual-engine.js'
+      - 'tests/rtc-engine-tests.js'
+      - '.github/workflows/rtc-engine-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'rtc-manual-engine.js'
+      - 'tests/rtc-engine-tests.js'
+      - '.github/workflows/rtc-engine-tests.yml'
+permissions:
+  contents: read
+jobs:
+  semantic-stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check rtc-manual-engine.js && node --check tests/rtc-engine-tests.js
+      - name: Run deterministic stress suite
+        run: node tests/rtc-engine-tests.js
