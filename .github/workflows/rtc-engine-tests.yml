@@ -1,19 +1,25 @@
-name: RTC engine stress tests
+name: RTC validation
+
 on:
   push:
-    branches: [rtc-manual-engine]
+    branches: [main, rtc-manual-engine]
     paths:
       - 'rtc-manual-engine.js'
-      - 'tests/rtc-engine-tests.js'
+      - 'simulador.html'
+      - 'tests/**'
       - '.github/workflows/rtc-engine-tests.yml'
   pull_request:
     branches: [main]
     paths:
       - 'rtc-manual-engine.js'
-      - 'tests/rtc-engine-tests.js'
+      - 'simulador.html'
+      - 'tests/**'
       - '.github/workflows/rtc-engine-tests.yml'
+  workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   semantic-stress:
     runs-on: ubuntu-latest
@@ -24,6 +30,14 @@ jobs:
         with:
           node-version: '22'
       - name: Syntax check
-        run: node --check rtc-manual-engine.js && node --check tests/rtc-engine-tests.js
-      - name: Run deterministic stress suite
+        run: |
+          node --check rtc-manual-engine.js
+          node --check tests/rtc-engine-tests.js
+          node --check tests/rtc-transmission-tests.js
+          node --check tests/rtc-flow-tests.js
+      - name: Run deterministic engine stress suite
         run: node tests/rtc-engine-tests.js
+      - name: Run callsign and transmission validation suite
+        run: node tests/rtc-transmission-tests.js
+      - name: Run simulator progression suite
+        run: node tests/rtc-flow-tests.js
